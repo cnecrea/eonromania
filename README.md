@@ -58,7 +58,9 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
 2. Introdu datele contului E-ON:
    - **Nume utilizator**: username-ul contului tău E-ON.
    - **Parolă**: parola asociată contului tău.
-   - **Cod încasare**: dacă codul este format din 10 cifre, de exemplu `2100023241`, trebuie să adaugi două zerouri la început. Rezultatul final ar trebui să fie `002100023241`.
+   - ~~**Cod încasare**: dacă codul este format din 10 cifre, de exemplu `2100023241`, trebuie să adaugi două zerouri la început. Rezultatul final ar trebui să fie `002100023241`.~~
+   - **Cod încasare**: Se găsește pe factura ta
+     - Nu mai este nevoie să introduci manual 00 înaintea codului de încasare! Dacă codul tău este format din 10 cifre (de exemplu `2100023241`), funcția de corectare implementată va adăuga automat două zerouri la început. Rezultatul final va deveni `002100023241`, astfel încât autentificarea să fie corectă și fără erori.
 3. Specifică intervalul de actualizare (implicit: 3600 secunde).
 
 ### Observații:
