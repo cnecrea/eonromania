@@ -55,8 +55,15 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
 
 ### 🛠️ Interfața UI:
 1. Adaugă integrarea din meniul **Setări > Dispozitive și Servicii > Adaugă Integrare**.
-2. Introdu datele contului E-ON: **nume utilizator**, **parolă**, și **cod încasare**.
+2. Introdu datele contului E-ON:
+   - **Nume utilizator**: username-ul contului tău E-ON.
+   - **Parolă**: parola asociată contului tău.
+   - **Cod încasare**: dacă codul este format din 10 cifre, de exemplu `2100023241`, trebuie să adaugi două zerouri la început. Rezultatul final ar trebui să fie `002100023241`.
 3. Specifică intervalul de actualizare (implicit: 3600 secunde).
+
+### Observații:
+- Verifică datele de autentificare înainte de salvare.
+- Asigură-te că formatul codului de încasare este corect pentru a evita problemele de conectare.
 
 ---
 
