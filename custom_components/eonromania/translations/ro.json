@@ -3,7 +3,7 @@
     "config": {
         "step": {
             "user": {
-                "title": "Configurare E-ON România",
+                "title": "Configurare pentru E-ON România",
                 "description": "Introduceți detaliile contului pentru autentificare.",
                 "data": {
                     "username": "Nume de utilizator",
@@ -21,8 +21,8 @@
     "options": {
         "step": {
             "init": {
-                "title": "Modificați opțiunile E-ON România",
-                "description": "Actualizați informațiile salvate.",
+                "title": "Modificați opțiunile pentru E-ON România",
+                "description": "Actualizați informațiile contului și intervalul de actualizare.",
                 "data": {
                     "username": "Nume de utilizator",
                     "password": "Parolă",
@@ -31,5 +31,10 @@
                 }
             }
         }
+    },
+    "system_messages": {
+        "entry_created": "Configurația a fost salvată cu succes.",
+        "options_updated": "Opțiunile au fost actualizate cu succes.",
+        "auth_in_progress": "Autentificare în curs..."
     }
 }
