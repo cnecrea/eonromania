@@ -52,9 +52,8 @@ class DateContractSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
         self.config_entry = config_entry
         self._attr_name = "Date contract"
-        self._attr_unique_id = f"{DOMAIN}_datecontract_{self.config_entry.entry_id}"
-        #self._attr_entity_id = f"{DOMAIN}_datecontract_{self.config_entry.entry_id}"
-        self._attr_entity_id = f"sensor._datecontract_{config_entry.data['cod_incasare']}"  # Explicit setat
+        self._attr_unique_id = f"{DOMAIN}_date_contract_{self.config_entry.entry_id}"
+        self._attr_entity_id = f"sensor.date_contract_{config_entry.data['cod_incasare']}"  # corect
 
 
         # Debug pentru inițializare
@@ -105,7 +104,16 @@ class DateContractSensor(CoordinatorEntity, SensorEntity):
     def unique_id(self):
         """Returnează identificatorul unic al senzorului."""
         return f"{DOMAIN}_eonromania_contract_{self.config_entry.data['cod_incasare']}"
-### aici
+
+    @property
+    def entity_id(self):
+        """Returnează identificatorul explicit al entității."""
+        return self._attr_entity_id
+
+    @entity_id.setter
+    def entity_id(self, value):
+        """Setează identificatorul explicit al entității."""
+        self._attr_entity_id = value
 
     @property
     def icon(self):
@@ -134,9 +142,10 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
         self.device_number = device_number  # Atribuim device_number
 
         # Creăm un unique_id unic pentru fiecare dispozitiv
-        self._attr_name = f"Index curent"
+        self._attr_name = "Index curent"
         self._attr_unique_id = f"{DOMAIN}_index_curent_{self.config_entry.entry_id}_{device_number}"
-        self._attr_entity_id = f"{DOMAIN}_index_curent_{self.config_entry.entry_id}_{device_number}"
+        self._attr_entity_id = f"sensor.index_curent_{self.config_entry.data['cod_incasare']}" # corect
+
 
         # Debug pentru inițializare
         _LOGGER.debug(
@@ -220,6 +229,16 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
         return f"{DOMAIN}_citire_index{self.config_entry.entry_id}_{self.device_number}"
 
     @property
+    def entity_id(self):
+        """Returnează identificatorul explicit al entității."""
+        return self._attr_entity_id
+
+    @entity_id.setter
+    def entity_id(self, value):
+        """Setează identificatorul explicit al entității."""
+        self._attr_entity_id = value
+
+    @property
     def icon(self):
         """Pictograma senzorului."""
         return "mdi:gauge"
@@ -246,8 +265,7 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
         self.year = year
         self._attr_name = f"Arhivă - {year}"
         self._attr_unique_id = f"{DOMAIN}_arhiva_{self.config_entry.entry_id}_{self.year}"
-        #self._attr_entity_id = f"{DOMAIN}_arhiva_{self.config_entry.data}_{self.year}"
-        self._attr_entity_id = f"{DOMAIN}_arhiva_{self.config_entry.data['cod_incasare']}_{self.year}"
+        self._attr_entity_id = f"sensor.arhiva_{self.config_entry.data['cod_incasare']}_{self.year}" # corect
 
 
         _LOGGER.debug(
@@ -288,6 +306,16 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
         return f"{DOMAIN}_arhiva_{self.config_entry.entry_id}_{self.year}"
         #self._attr_unique_id = f"{DOMAIN}_arhiva_{config_entry.entry_id}_{year}"
         #return f"{DOMAIN}_arhiva_{self.config_entry.data['cod_incasare']}"
+
+    @property
+    def entity_id(self):
+        """Returnează identificatorul explicit al entității."""
+        return self._attr_entity_id
+
+    @entity_id.setter
+    def entity_id(self, value):
+        """Setează identificatorul explicit al entității."""
+        self._attr_entity_id = value
 
     @property
     def icon(self):
