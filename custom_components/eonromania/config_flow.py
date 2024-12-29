@@ -4,6 +4,7 @@ import logging
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN, DEFAULT_UPDATE, URL_LOGIN, HEADERS_POST
@@ -84,6 +85,12 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return None
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        """Returnează fluxul de opțiuni."""
+        return EonRomaniaOptionsFlow(config_entry)
+
 
 class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
     """Gestionarea OptionsFlow pentru integrarea EON România."""
@@ -94,10 +101,22 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Pasul inițial pentru modificarea opțiunilor."""
+        _LOGGER.debug("OptionsFlow inițializat pentru %s", self.config_entry.entry_id)  # Log debug
+
         if user_input is not None:
             # Salvăm noile date în config_entry
             _LOGGER.debug("Modificare date: %s", user_input)
-            self.hass.config_entries.async_update_entry(self.config_entry, options=user_input)
+            self.hass.config_entries.async_update_entry(
+                self.config_entry,
+                options={
+                    "update_interval": user_input["update_interval"],
+                },
+                data={
+                    "username": user_input["username"],
+                    "password": user_input["password"],
+                    "cod_incasare": user_input["cod_incasare"],
+                },
+            )
             return self.async_create_entry(title="", data={})
 
         # Pregătim schema pentru formularul de modificare
@@ -106,7 +125,7 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional("username", default=self.config_entry.data.get("username", "")): str,
                 vol.Optional("password", default=self.config_entry.data.get("password", "")): str,
                 vol.Optional("cod_incasare", default=self.config_entry.data.get("cod_incasare", "")): str,
-                vol.Optional("update_interval", default=self.config_entry.data.get("update_interval", DEFAULT_UPDATE)): int,
+                vol.Optional("update_interval", default=self.config_entry.options.get("update_interval", DEFAULT_UPDATE)): int,
             }
         )
 
