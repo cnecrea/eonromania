@@ -6,23 +6,41 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
 ## 🌟 Caracteristici
 
 ### Senzor `Date contract`:
-- **🔍 Monitorizare Generală**:
-  - Afișează informații detaliate despre contractul de furnizare energie.
-- **📊 Atribute disponibile**:
-  - **Cod încasare**: Codul unic al contractului.
-  - **Cod loc de consum (NLC)**: Identificatorul locației de consum.
-  - **Operator Distribuție (OD)**: Numele operatorului de distribuție.
-  - **Prețuri detaliate**: Include prețurile pentru furnizare, transport și distribuție.
-  - **Adresă consum**: Adresa locației de consum.
+  - **🔍 Monitorizare Generală**:
+      - Afișează informații detaliate despre contractul de furnizare energie.
+  - **📊 Atribute disponibile**:
+      - **Cod încasare**: Codul unic al contractului.
+      - **Cod loc de consum (NLC)**: Identificatorul locației de consum.
+      - **CLC - Cod punct de măsură**: Codul unic al punctului de măsurare.
+      - **Operator de Distribuție (OD)**: Numele operatorului de distribuție.
+      - **Prețuri detaliate**:
+        - **Preț final (fără TVA)**: Valoarea finală fără TVA.
+        - **Preț final (cu TVA)**: Valoarea finală inclusiv TVA.
+        - **Preț furnizare**: Costul pentru furnizarea energiei.
+        - **Tarif reglementat distribuție**: Costul distribuției energiei.
+        - **Tarif reglementat transport**: Costul transportului energiei.
+      - **PCS (Potențial caloric superior)**: Valoarea calorică superioară a energiei.
+      - **Adresă consum**: Adresa locației de consum.
+      - **Verificare instalație**: Data următoarei verificări tehnice a instalației.
+      - **Data inițierii reviziei**: Data la care începe următoarea revizie tehnică.
+      - **Revizie tehnică**: Data expirării următoarei revizii tehnice.
 
-### Senzor `Index curent`:
-- **🔍 Monitorizare Index**:
-  - Afișează valorile curente ale indexului contorului.
-- **📊 Atribute disponibile**:
-  - **Număr dispozitiv**: Numărul contorului.
-  - **Data de început și final a citirii**: Intervalul de citire.
-  - **Ultima citire validată**: Indexul confirmat.
-  - **Index propus pentru facturare**: Valoarea actuală a indexului.
+### Senzor `Index Curent`:
+  - **🔍 Monitorizare Date Index**:
+      - Afișează informații detaliate despre indexul curent al contorului.
+  - **📊 Atribute disponibile**:
+      - **Numărul dispozitivului**: ID-ul dispozitivului asociat contorului.
+      - **Data de început a citirii**: Data de început a perioadei de citire.
+      - **Data de final a citirii**: Data de final a perioadei de citire.
+      - **Citirea contorului permisă**: Indică dacă citirea poate fi realizată în perioada curentă.
+      - **Permite modificarea citirii**: Indică dacă indexul citit poate fi modificat.
+      - **Dispozitiv inteligent**: Specifică dacă dispozitivul este un contor inteligent.
+      - **Tipul citirii curente**: Tipul citirii efectuate (de exemplu, autocitire).
+      - **Citire anterioară**: Valoarea minimă a citirii anterioare.
+      - **Ultima citire validată**: Ultima valoare validată a citirii.
+      - **Index propus pentru facturare**: Valoarea indexului propus pentru facturare.
+      - **Trimis la**: Data și ora la care a fost transmisă ultima citire.
+      - **Poate fi modificat până la**: Data și ora până la care citirea poate fi modificată.
 
 ### Senzor `Arhivă`:
 - **📚 Date Istorice**:
