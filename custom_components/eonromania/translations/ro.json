@@ -15,7 +15,8 @@
         },
         "error": {
             "auth_failed": "Autentificare eșuată. Verificați datele introduse.",
-            "connection_error": "Eroare de conexiune. Încercați din nou mai târziu."
+            "connection_error": "Eroare de conexiune. Încercați din nou mai târziu.",
+            "invalid_cod_incasare": "Codul de încasare trebuie să aibă exact 12 cifre."
         }
     },
     "options": {
