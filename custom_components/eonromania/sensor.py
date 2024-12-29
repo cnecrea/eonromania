@@ -128,7 +128,7 @@ class DateContractSensor(CoordinatorEntity, SensorEntity):
         """Informații despre dispozitiv pentru integrare."""
         return {
             "identifiers": {(DOMAIN, "eonromania")},
-            "name": "Interfață UI pentru E-ON România",
+            "name": "E-ON România",
             "manufacturer": "Ciprian Nicolae (cnecrea)",
             "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
@@ -252,7 +252,7 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
         """Informații despre dispozitiv pentru integrare."""
         return {
             "identifiers": {(DOMAIN, "eonromania")},
-            "name": "Interfață UI pentru E-ON România",
+            "name": "E-ON România",
             "manufacturer": "Ciprian Nicolae (cnecrea)",
             "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
@@ -346,7 +346,7 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
         """Informații despre dispozitiv pentru integrare."""
         return {
             "identifiers": {(DOMAIN, "eonromania")},
-            "name": "Interfață UI pentru E-ON România",
+            "name": "E-ON România",
             "manufacturer": "Ciprian Nicolae (cnecrea)",
             "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
