@@ -38,6 +38,13 @@ Această documentație explică pașii necesari pentru configurarea integrării 
 #### **Card pentru Index Curent**
 Adaugă acest cod YAML pentru a afișa detaliile indexului curent:
 
+---
+
+#### 🚨 ATENȚIE:
+  - Înlocuiește **sensor.date_contract** cu **ID-ul exact** al senzorului din Home Assistant.
+  - Adaugă acest YAML în tabloul tău Lovelace.
+  - Salvează și verifică.
+
 ```yaml
 type: entities
 title: Index Curent
