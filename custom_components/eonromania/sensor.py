@@ -216,7 +216,7 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
             "Permite modificarea citirii": "Da" if reading_period.get("allowChange") else "Nu",
             "Dispozitiv inteligent": "Da" if reading_period.get("smartDevice") else "Nu",
             "Tipul citirii curente": (
-            "Autocitire" if reading_period.get("currentReadingType") == "02" else "Citire distribuitor" if reading_period.get("currentReadingType") == "01" else  "Corecție" if reading_period.get("currentReadingType") == "03" else "Necunoscut" ),
+            "Autocitire" if reading_period.get("currentReadingType") == "02" else "Citire distribuitor" if reading_period.get("currentReadingType") == "01" else  "Estimare" if reading_period.get("currentReadingType") == "03" else "Necunoscut" ),
             "Citire anterioară": first_index.get("minValue"),
             "Ultima citire validată": first_index.get("oldValue"),
             "Index propus pentru facturare": first_index.get("currentValue"),
@@ -304,7 +304,7 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
         reading_type_map = {
             "01": "Citire distribuitor",
             "02": "Autocitire",
-            "03": "Corecție"
+            "03": "Estimare"
         }
 
         # Structurăm atributele
