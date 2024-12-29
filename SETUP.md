@@ -26,7 +26,7 @@ Această documentație explică pașii necesari pentru configurarea integrării 
 2. Apasă pe **Adaugă Integrare** și caută `EON România`.
 3. Introdu detaliile contului tău:
    - **Nume de utilizator** și **Parolă** (de pe portalul EON).
-   - **Cod de încasare** asociat contului.
+   - **Cod încasare**: dacă codul este format din 10 cifre, de exemplu `2100023241`, trebuie să adaugi două zerouri la început. Rezultatul final ar trebui să fie `002100023241`.
    - **Interval de actualizare** (în secunde, implicit: 3600).
 
 4. După configurare, senzorii vor fi disponibili în **Entități**.
