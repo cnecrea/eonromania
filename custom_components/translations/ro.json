@@ -1,0 +1,35 @@
+{
+    "title": "E-ON România",
+    "config": {
+        "step": {
+            "user": {
+                "title": "Configurare E-ON România",
+                "description": "Introduceți detaliile contului pentru autentificare.",
+                "data": {
+                    "username": "Nume de utilizator",
+                    "password": "Parolă",
+                    "cod_incasare": "Cod de încasare",
+                    "update_interval": "Interval de actualizare (secunde)"
+                }
+            }
+        },
+        "error": {
+            "auth_failed": "Autentificare eșuată. Verificați datele introduse.",
+            "connection_error": "Eroare de conexiune. Încercați din nou mai târziu."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Modificați opțiunile E-ON România",
+                "description": "Actualizați informațiile salvate.",
+                "data": {
+                    "username": "Nume de utilizator",
+                    "password": "Parolă",
+                    "cod_incasare": "Cod de încasare",
+                    "update_interval": "Interval de actualizare (secunde)"
+                }
+            }
+        }
+    }
+}
