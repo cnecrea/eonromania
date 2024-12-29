@@ -3,7 +3,6 @@
 import logging
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -27,27 +26,38 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             cod_incasare = user_input["cod_incasare"]
             update_interval = user_input["update_interval"]
 
-            _LOGGER.debug("Date introduse: username=%s, cod_incasare=%s", username, cod_incasare)
+            # Validăm și ajustăm cod_incasare
+            try:
+                if len(cod_incasare) < 12:
+                    cod_incasare = cod_incasare.zfill(12)  # Adaugă zerouri în față
+                elif len(cod_incasare) > 12:
+                    raise ValueError("Codul de încasare este prea lung.")
+            except ValueError:
+                errors["cod_incasare"] = "invalid_cod_incasare"
+                _LOGGER.error("Codul de încasare invalid: %s", cod_incasare)
 
-            # Testăm autentificarea
-            session = async_get_clientsession(self.hass)
-            token = await self._test_authentication(session, username, password)
+            if not errors:
+                _LOGGER.debug("Date introduse: username=%s, cod_incasare=%s", username, cod_incasare)
 
-            if token:
-                _LOGGER.debug("Autentificare reușită! Token obținut: %s", token)
-                # Salvăm datele în core.config_entries
-                return self.async_create_entry(
-                    title=f"E-ON România ({cod_incasare})",
-                    data={
-                        "username": username,
-                        "password": password,
-                        "cod_incasare": cod_incasare,
-                        "update_interval": update_interval
-                    },
-                )
-            else:
-                errors["base"] = "auth_failed"
-                _LOGGER.error("Autentificare eșuată pentru utilizatorul %s", username)
+                # Testăm autentificarea
+                session = async_get_clientsession(self.hass)
+                token = await self._test_authentication(session, username, password)
+
+                if token:
+                    _LOGGER.debug("Autentificare reușită! Token obținut: %s", token)
+                    # Salvăm datele în core.config_entries
+                    return self.async_create_entry(
+                        title=f"E-ON România ({cod_incasare})",
+                        data={
+                            "username": username,
+                            "password": password,
+                            "cod_incasare": cod_incasare,
+                            "update_interval": update_interval,
+                        },
+                    )
+                else:
+                    errors["base"] = "auth_failed"
+                    _LOGGER.error("Autentificare eșuată pentru utilizatorul %s", username)
 
         # Schema formularului de configurare
         data_schema = vol.Schema(
@@ -61,7 +71,7 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
 
-    async def _test_authentication(self, session: HomeAssistant, username: str, password: str):
+    async def _test_authentication(self, session, username: str, password: str):
         """Testează autentificarea utilizând API-ul."""
         payload = {
             "username": username,
