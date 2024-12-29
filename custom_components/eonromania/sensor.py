@@ -96,6 +96,9 @@ class DateContractSensor(CoordinatorEntity, SensorEntity):
             "Tarif reglementat transport": f"{raw_data.get('supplierAndDistributionPrice', {}).get('priceComponents', {}).get('transportPrice')} lei/kWh",
             "PCS": str(raw_data.get("supplierAndDistributionPrice", {}).get("pcs")),
             "Adresă consum": f"{raw_data.get('consumptionPointAddress', {}).get('street', {}).get('streetType', {}).get('label')} {raw_data.get('consumptionPointAddress', {}).get('street', {}).get('streetName')} {raw_data.get('consumptionPointAddress', {}).get('streetNumber')} ap. {raw_data.get('consumptionPointAddress', {}).get('apartment')}, {raw_data.get('consumptionPointAddress', {}).get('locality', {}).get('localityName')}",
+            "Următoarea verificare a instalației": raw_data.get("verificationExpirationDate"),
+            "Data inițierii reviziei": raw_data.get("revisionStartDate"),
+            "Următoarea revizie tehnică": raw_data.get("revisionExpirationDate"),
         }
         _LOGGER.debug("Senzor DateContractSensor - Atribute: %s", attributes)
         return attributes
@@ -126,8 +129,8 @@ class DateContractSensor(CoordinatorEntity, SensorEntity):
         return {
             "identifiers": {(DOMAIN, "eonromania")},
             "name": "Interfață UI pentru E-ON România",
-            "manufacturer": "E-ON România",
-            "model": "E-ON România X3",
+            "manufacturer": "Ciprian Nicolae (cnecrea)",
+            "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
         }
 
@@ -207,12 +210,13 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
 
         attributes = {
             "Numărul dispozitivului": first_device.get("deviceNumber"),
-            "Data de început a citirii": reading_period.get("startDate"),
+            "Data de începere a următoarei citiri": reading_period.get("startDate"),
             "Data de final a citirii": reading_period.get("endDate"),
-            "Citirea contorului permisă": "Da" if reading_period.get("allowedReading") else "Nu",
+            "Autorizat să citească contorul": "Da" if reading_period.get("allowedReading") else "Nu",
             "Permite modificarea citirii": "Da" if reading_period.get("allowChange") else "Nu",
             "Dispozitiv inteligent": "Da" if reading_period.get("smartDevice") else "Nu",
-            "Tipul citirii curente": "Autocitire" if reading_period.get("currentReadingType") == "02" else "Citire distribuitor" if reading_period.get("currentReadingType") == "01" else "Necunoscut",
+            "Tipul citirii curente": (
+            "Autocitire" if reading_period.get("currentReadingType") == "02" else "Citire distribuitor" if reading_period.get("currentReadingType") == "01" else  "Corecție" if reading_period.get("currentReadingType") == "03" else "Necunoscut" ),
             "Citire anterioară": first_index.get("minValue"),
             "Ultima citire validată": first_index.get("oldValue"),
             "Index propus pentru facturare": first_index.get("currentValue"),
@@ -249,8 +253,8 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
         return {
             "identifiers": {(DOMAIN, "eonromania")},
             "name": "Interfață UI pentru E-ON România",
-            "manufacturer": "E-ON România",
-            "model": "E-ON România X3",
+            "manufacturer": "Ciprian Nicolae (cnecrea)",
+            "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
         }
 
@@ -291,21 +295,36 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
         if not year_data:
             return {}
 
-        attributes = {
-            "An": self.year,
-            "Indexuri": year_data,
-            "raw_json": year_data,  # Include date brute pentru diagnosticare
+        # Harta lunilor și tipurilor de citire
+        months_map = {
+            1: "ianuarie", 2: "februarie", 3: "martie", 4: "aprilie",
+            5: "mai", 6: "iunie", 7: "iulie", 8: "august",
+            9: "septembrie", 10: "octombrie", 11: "noiembrie", 12: "decembrie"
         }
-        _LOGGER.debug("Senzor ArhivaSensor - Atribute: %s", attributes)
+        reading_type_map = {
+            "01": "Citire distribuitor",
+            "02": "Autocitire",
+            "03": "Corecție"
+        }
+
+        # Structurăm atributele
+        attributes = {}
+        for meter in year_data.get("meters", []):
+            for index in meter.get("indexes", []):
+                for reading in index.get("readings", []):
+                    month = months_map.get(reading.get("month"), "Necunoscut")
+                    value = int(reading.get("value", 0))  # Fără zecimale
+                    reading_type = reading_type_map.get(reading.get("readingType"), "Necunoscut")
+                    attributes[f"Index {month}"] = value
+                    attributes[f"Metodă de citire {month}"] = reading_type
+
+        _LOGGER.debug("Senzor ArhivaSensor - Atribute generate: %s", attributes)
         return attributes
 
     @property
     def unique_id(self):
         """Returnează identificatorul unic al senzorului."""
-        #return f"{DOMAIN}_arhiva_{config_entry.entry_id}_{year}"
         return f"{DOMAIN}_arhiva_{self.config_entry.entry_id}_{self.year}"
-        #self._attr_unique_id = f"{DOMAIN}_arhiva_{config_entry.entry_id}_{year}"
-        #return f"{DOMAIN}_arhiva_{self.config_entry.data['cod_incasare']}"
 
     @property
     def entity_id(self):
@@ -328,7 +347,7 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
         return {
             "identifiers": {(DOMAIN, "eonromania")},
             "name": "Interfață UI pentru E-ON România",
-            "manufacturer": "E-ON România",
-            "model": "E-ON România X3",
+            "manufacturer": "Ciprian Nicolae (cnecrea)",
+            "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
         }  
