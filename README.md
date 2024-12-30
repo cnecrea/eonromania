@@ -64,6 +64,14 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
   - **An**: Anul pentru care se afișează datele.
   - **Indexuri lunare**: Indexurile consumului pentru fiecare lună.
 
+
+### Senzor `Factură Restantă`:
+- **📄 Detalii Sold**:
+  - Afișează dacă există facturi restante.
+- **📊 Atribute disponibile**:
+  - **Restanțe pe luna [numele lunii]**: Soldul restant pentru luna respectivă.
+  - **Total sold**: Suma totală a soldului restant, afișată în lei.
+
 ---
 
 ## ⚙️ Configurare
