@@ -330,11 +330,11 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
                         month_name_ro = "necunoscut"
 
                     # Adăugăm atributele cu noile denumiri
-                    attributes[f"restanțe pe luna {month_name_ro}"] = f"{balance:.2f}"
+                    attributes[f"restanțe pe luna {month_name_ro}"] = f"{balance:.2f} lei"
 
         # Adăugăm separatorul explicit înainte de total sold
-        attributes["----------"] = ""
-        attributes["total sold"] = f"{total_sold:.2f}" if total_sold > 0 else "0.00"
+        attributes["---------------"] = ""
+        attributes["total sold"] = f"{total_sold:.2f} lei" if total_sold > 0 else "0.00 lei"
 
         return attributes
 
