@@ -1,5 +1,6 @@
 """Platforma Sensor pentru EON România."""
 import logging
+from datetime import datetime
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.device_registry import DeviceEntryType
@@ -18,6 +19,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     sensors = [
         DateContractSensor(coordinators["dateuser"], config_entry),
     ]
+
+    # Adăugăm senzorul FacturaRestantaSensor
+    factura_restanta_data = coordinators.get("facturasold")
+    if factura_restanta_data:
+        sensors.append(FacturaRestantaSensor(factura_restanta_data, config_entry))
 
     # Adăugăm senzori pentru fiecare dispozitiv din `indexDetails`
     citireindex_data = coordinators["citireindex"].data
@@ -257,6 +263,112 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
             "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
         }
+
+# Senzor pentru afișarea facturii neplatite.
+# Dicționar pentru mapping-ul lunilor în română
+MONTHS_RO = {
+    "January": "ianuarie",
+    "February": "februarie",
+    "March": "martie",
+    "April": "aprilie",
+    "May": "mai",
+    "June": "iunie",
+    "July": "iulie",
+    "August": "august",
+    "September": "septembrie",
+    "October": "octombrie",
+    "November": "noiembrie",
+    "December": "decembrie",
+}
+# Senzor pentru afișarea facturii neplatite.
+class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
+    """Senzor pentru afișarea soldului restant al facturilor."""
+
+    def __init__(self, coordinator, config_entry):
+        """Inițializează senzorul FacturaRestantaSensor."""
+        super().__init__(coordinator)
+        self.config_entry = config_entry
+        self._attr_unique_id = f"{DOMAIN}_factura_restanta_{self.config_entry.entry_id}"
+        self._attr_name = "Factură restantă"
+        self._entity_id = f"sensor.factura_restanta_{self.config_entry.data['cod_incasare']}"
+        self._icon = "mdi:file-document-alert-outline"
+
+    @property
+    def state(self):
+        """Returnează starea principală a senzorului."""
+        data = self.coordinator.data
+        if not data or "balancePay" not in data:
+            return None
+
+        # Verificăm dacă există cel puțin o factură neachitată
+        return "Da" if data.get("balancePay", False) else "Nu"
+
+    @property
+    def extra_state_attributes(self):
+        """Returnează atributele adiționale ale senzorului."""
+        data = self.coordinator.data
+        if not data:
+            return {}
+
+        attributes = {}
+        total_sold = 0  # Inițializăm suma totală
+
+        # Calculăm totalul și adăugăm atribute pentru fiecare factură neachitată
+        if isinstance(data, dict):
+            for idx, item in enumerate([data], start=1):
+                if item.get("balancePay", False):
+                    balance = float(item.get("balance", 0))
+                    total_sold += balance
+
+                    # Obținem luna din data facturii și traducem în română
+                    raw_date = item.get("date", "Necunoscut")
+                    try:
+                        parsed_date = datetime.strptime(raw_date, "%d.%m.%Y")
+                        month_name_en = parsed_date.strftime("%B")  # Obține numele lunii în engleză
+                        month_name_ro = MONTHS_RO.get(month_name_en, "necunoscut")
+                    except ValueError:
+                        month_name_ro = "necunoscut"
+
+                    # Adăugăm atributele cu noile denumiri
+                    attributes[f"restanțe pe luna {month_name_ro}"] = f"{balance:.2f}"
+
+        # Adăugăm separatorul explicit înainte de total sold
+        attributes["----------"] = ""
+        attributes["total sold"] = f"{total_sold:.2f}" if total_sold > 0 else "0.00"
+
+        return attributes
+
+    @property
+    def unique_id(self):
+        """Returnează identificatorul unic al senzorului."""
+        return self._attr_unique_id
+
+    @property
+    def entity_id(self):
+        """Returnează identificatorul explicit al entității."""
+        return self._entity_id
+
+    @entity_id.setter
+    def entity_id(self, value):
+        """Setează identificatorul explicit al entității."""
+        self._attr_entity_id = value
+
+    @property
+    def icon(self):
+        """Pictograma senzorului."""
+        return self._icon
+
+    @property
+    def device_info(self):
+        """Informații despre dispozitiv pentru integrare."""
+        return {
+            "identifiers": {(DOMAIN, "eonromania")},
+            "name": "E-ON România",
+            "manufacturer": "Ciprian Nicolae (cnecrea)",
+            "model": "E-ON România",
+            "entry_type": DeviceEntryType.SERVICE,
+        }
+
 
 # Senzor pentru afișarea datelor istorice ale consumului
 class ArhivaSensor(CoordinatorEntity, SensorEntity):
