@@ -1,7 +1,7 @@
 {
     "name": "E-ON România",
     "country": ["ro"],
-    "domain": "e-bloc",
+    "domain": "eonromania",
     "codeowners": ["@cnecrea"],
     "requirements": [],
     "iot_class": "cloud_polling",
