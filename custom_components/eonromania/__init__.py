@@ -5,7 +5,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DOMAIN, DEFAULT_UPDATE, URL_DATEUSER, URL_CITIREINDEX, URL_ARHIVA, HEADERS_POST, URL_LOGIN
+from .const import DOMAIN, DEFAULT_UPDATE, URL_DATEUSER, URL_CITIREINDEX, URL_ARHIVA, URL_FACTURASOLD, HEADERS_POST, URL_LOGIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,7 +16,6 @@ async def async_setup(hass: HomeAssistant, config: dict):
     return True
 
 # Configurare pentru fiecare intrare (entry) adăugată în config_entries
-    _LOGGER.debug("Apel async_setup_entry pentru senzorii din entry_id=%s", config_entry.entry_id)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Configurare specifică pentru o intrare din config_entries."""
     _LOGGER.debug("Configurarea intrării pentru %s", DOMAIN)
@@ -41,7 +40,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         update_interval=update_interval,
     )
 
-    # Coordinator pentru datele istorice (arhivă)
     arhiva_coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
@@ -50,17 +48,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         update_interval=update_interval,
     )
 
+    # Coordinator pentru soldul facturilor
+    facturasold_coordinator = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name=f"{DOMAIN}_facturasold_coordinator",
+        update_method=lambda: _fetch_facturasold_data(hass, entry),
+        update_interval=update_interval,
+    )
+
     # Salvăm coordinatorii
     hass.data[DOMAIN][entry.entry_id] = {
         "dateuser": dateuser_coordinator,
         "citireindex": citireindex_coordinator,
         "arhiva": arhiva_coordinator,
+        "facturasold": facturasold_coordinator,
     }
 
     # Actualizare inițială
     await dateuser_coordinator.async_config_entry_first_refresh()
     await citireindex_coordinator.async_config_entry_first_refresh()
     await arhiva_coordinator.async_config_entry_first_refresh()
+    await facturasold_coordinator.async_config_entry_first_refresh()
 
     # Adăugarea platformelor (senzori, etc.)
     _LOGGER.debug("Pregătire pentru forward platform setup pentru %s", entry.entry_id)
@@ -140,6 +149,32 @@ async def _fetch_arhiva_data(hass, entry):
         else:
             _LOGGER.error(
                 "Eroare la obținerea datelor din arhivă: Status=%s, Răspuns=%s",
+                response.status,
+                await response.text(),
+            )
+            return None
+
+# Obține datele despre soldul facturilor
+async def _fetch_facturasold_data(hass, entry):
+    """Obține datele despre soldul facturilor de la API-ul E-ON România."""
+    token = await _fetch_token(hass, entry.data["username"], entry.data["password"])
+    if not token:
+        _LOGGER.error("Nu s-a putut obține un token valid pentru soldul facturilor.")
+        return None
+
+    url = URL_FACTURASOLD.format(cod_incasare=entry.data["cod_incasare"])
+    headers = HEADERS_POST.copy()
+    headers["Authorization"] = f"Bearer {token}"
+
+    session = hass.helpers.aiohttp_client.async_get_clientsession()
+    async with session.get(url, headers=headers) as response:
+        if response.status == 200:
+            data = await response.json()
+            _LOGGER.debug("Răspuns API pentru URL_FACTURASOLD: %s", data)
+            return data
+        else:
+            _LOGGER.error(
+                "Eroare la obținerea datelor despre soldul facturilor: Status=%s, Răspuns=%s",
                 response.status,
                 await response.text(),
             )
