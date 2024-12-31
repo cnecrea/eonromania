@@ -334,7 +334,7 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
 
         # Adăugăm separatorul explicit înainte de total sold
         attributes["---------------"] = ""
-        attributes["total sold"] = f"{total_sold:.2f} lei" if total_sold > 0 else "0.00 lei"
+        attributes["Total neachitat"] = f"{total_sold:.2f} lei" if total_sold > 0 else "0.00 lei"
 
         return attributes
 
