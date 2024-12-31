@@ -11,4 +11,5 @@
     "codeowners": ["@cnecrea"],
     "translations": "translations",
     "platforms": ["sensor"]
+    "icon": "custom_components/eonromania/icon.png"
 }
