@@ -1,5 +1,3 @@
-
-
 ![logo-main](https://github.com/user-attachments/assets/5841ec01-81c9-4c25-8373-b09d9ba11fe6)
 
 # E-ON România - Integrare pentru Home Assistant 🏠🇷🇴
