@@ -389,6 +389,112 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
             "entry_type": DeviceEntryType.SERVICE,
         }
 
+# Senzor pentru afișarea facturii prosumator neplatite.
+class FacturaProsumatorRestantaSensor(CoordinatorEntity, SensorEntity):
+    """Senzor pentru afișarea soldului de prosumator restant al facturilor."""
+
+    def __init__(self, coordinator, config_entry):
+        """Inițializează senzorul FacturaProsumatorRestantaSensor."""
+        super().__init__(coordinator)
+        self.config_entry = config_entry
+        self._attr_unique_id = f"{DOMAIN}_factura_restanta_{self.config_entry.entry_id}"
+        self._attr_name = "Factură prosumator restantă"
+        self._entity_id = f"sensor.factura_restanta_{self.config_entry.data['cod_incasare']}"
+        self._icon = "mdi:file-document-alert-outline"
+
+    @property
+    def state(self):
+        """Returnează starea principală a senzorului."""
+        data = self.coordinator.data
+        if not data or "balancePay" not in data:
+            return None
+
+        # Verificăm dacă există cel puțin o factură neachitată
+        return "Da" if data.get("balancePay", False) else "Nu"
+
+    @property
+    def extra_state_attributes(self):
+        """Returnează atributele adiționale ale senzorului."""
+        data = self.coordinator.data
+        if not data:
+            return {}
+
+        attributes = {}
+        total_sold = 0  # Inițializăm suma totală
+
+        # Calculăm totalul și adăugăm atribute pentru fiecare factură neachitată
+        if isinstance(data, dict):
+            for idx, item in enumerate([data], start=1):
+                if item.get("balancePay", False):
+                    balance = float(item.get("balance", 0))
+                    total_sold += balance
+
+                    # Obținem luna din data facturii și traducem în română
+                    raw_date = item.get("date", "Necunoscut")
+                    try:
+                        parsed_date = datetime.strptime(raw_date, "%d.%m.%Y")
+                        month_name_en = parsed_date.strftime("%B")  # Obține numele lunii în engleză
+                        month_name_ro = MONTHS_RO.get(month_name_en, "necunoscut")
+
+                        # Calculăm zilele rămase până la data scadenței
+                        days_until_due = (parsed_date - datetime.now()).days
+                        if days_until_due < 0:
+                            day_unit = "zi" if abs(days_until_due) == 1 else "zile"
+                            due_message = (
+                                f"Restanță de {balance:.2f} lei, termen depășit cu {abs(days_until_due)} {day_unit}"
+                            )
+                        elif days_until_due == 0:
+                            due_message = f"De achitat astăzi, {datetime.now().strftime('%d.%m.%Y')}: {balance:.2f} lei"
+                        else:
+                            day_unit = "zi" if days_until_due == 1 else "zile"
+                            due_message = (
+                                f"Următoarea sumă de {balance:.2f} lei este scadentă "
+                                f"pe luna {month_name_ro} ({days_until_due} {day_unit})"
+                            )
+
+                        attributes["Stare plată"] = due_message
+
+                    except ValueError:
+                        month_name_ro = "necunoscut"
+                        attributes["Plată scadentă"] = "Data scadenței necunoscută"
+
+        # Adăugăm separatorul explicit înainte de total sold
+        attributes["---------------"] = ""
+        attributes["Total neachitat"] = f"{total_sold:,.2f} lei" if total_sold > 0 else "0.00 lei"
+        attributes["attribution"] = ATTRIBUTION
+
+        return attributes
+
+    @property
+    def unique_id(self):
+        """Returnează identificatorul unic al senzorului."""
+        return self._attr_unique_id
+
+    @property
+    def entity_id(self):
+        """Returnează identificatorul explicit al entității."""
+        return self._entity_id
+
+    @entity_id.setter
+    def entity_id(self, value):
+        """Setează identificatorul explicit al entității."""
+        self._attr_entity_id = value
+
+    @property
+    def icon(self):
+        """Pictograma senzorului."""
+        return self._icon
+
+    @property
+    def device_info(self):
+        """Informații despre dispozitiv pentru integrare."""
+        return {
+            "identifiers": {(DOMAIN, "eonromania")},
+            "name": "E-ON România",
+            "manufacturer": "Ciprian Nicolae (cnecrea)",
+            "model": "E-ON România",
+            "entry_type": DeviceEntryType.SERVICE,
+        }
 
 # Senzor pentru afișarea datelor istorice ale consumului
 class ArhivaSensor(CoordinatorEntity, SensorEntity):
