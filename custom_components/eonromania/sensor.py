@@ -24,7 +24,11 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     factura_restanta_data = coordinators.get("facturasold")
     if factura_restanta_data:
         sensors.append(FacturaRestantaSensor(factura_restanta_data, config_entry))
-
+     # Adăugăm senzorul FacturaProsumatorRestantaSensor
+    factura_prosumator_restanta_data = coordinators.get("facturasoldprosum")
+    if factura_prosumator_restanta_data:
+        sensors.append(FacturaProsumatorRestantaSensor(factura_prosumator_restanta_data, config_entry))
+        
     # Adăugăm senzori pentru fiecare dispozitiv din `indexDetails`
     citireindex_data = coordinators["citireindex"].data
     if citireindex_data:
