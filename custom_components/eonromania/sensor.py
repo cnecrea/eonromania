@@ -59,7 +59,7 @@ class DateContractSensor(CoordinatorEntity, SensorEntity):
         self.config_entry = config_entry
         self._attr_name = "Date contract"
         self._attr_unique_id = f"{DOMAIN}_date_contract_{self.config_entry.entry_id}"
-        self._attr_entity_id = f"sensor.date_contract_{config_entry.data['cod_incasare']}"  # corect
+        self._attr_entity_id = f"sensor.{DOMAIN}_date_contract_{config_entry.data['cod_incasare']}"  # corect
 
 
         # Debug pentru inițializare
@@ -154,7 +154,7 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
         # Creăm un unique_id unic pentru fiecare dispozitiv
         self._attr_name = "Index curent"
         self._attr_unique_id = f"{DOMAIN}_index_curent_{self.config_entry.entry_id}_{device_number}"
-        self._attr_entity_id = f"sensor.index_curent_{self.config_entry.data['cod_incasare']}" # corect
+        self._attr_entity_id = f"sensor.{DOMAIN}_index_curent_{self.config_entry.data['cod_incasare']}" # corect
 
 
         # Debug pentru inițializare
@@ -292,18 +292,18 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
         self.config_entry = config_entry
         self._attr_unique_id = f"{DOMAIN}_factura_restanta_{self.config_entry.entry_id}"
         self._attr_name = "Factură restantă"
-        self._entity_id = f"sensor.factura_restanta_{self.config_entry.data['cod_incasare']}"
+        self._entity_id = f"sensor.{DOMAIN}_factura_restanta_{self.config_entry.data['cod_incasare']}"
         self._icon = "mdi:file-document-alert-outline"
 
     @property
     def state(self):
         """Returnează starea principală a senzorului."""
         data = self.coordinator.data
-        if not data or "balancePay" not in data:
+        if not data:
             return None
 
         # Verificăm dacă există cel puțin o factură neachitată
-        return "Da" if data.get("balancePay", False) else "Nu"
+        return "Da" if any(item.get("issuedValue", 0) > 0 for item in data) else "Nu"
 
     @property
     def extra_state_attributes(self):
@@ -316,14 +316,14 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
         total_sold = 0  # Inițializăm suma totală
 
         # Calculăm totalul și adăugăm atribute pentru fiecare factură neachitată
-        if isinstance(data, dict):
-            for idx, item in enumerate([data], start=1):
-                if item.get("balancePay", False):
-                    balance = float(item.get("balance", 0))
-                    total_sold += balance
+        if isinstance(data, list):
+            for idx, item in enumerate(data, start=1):
+                issued_value = float(item.get("issuedValue", 0))
+                if issued_value > 0:
+                    total_sold += issued_value
 
-                    # Obținem luna din data facturii și traducem în română
-                    raw_date = item.get("date", "Necunoscut")
+                    # Obținem luna din data maturității și traducem în română
+                    raw_date = item.get("maturityDate", "Necunoscut")
                     try:
                         parsed_date = datetime.strptime(raw_date, "%d.%m.%Y")
                         month_name_en = parsed_date.strftime("%B")  # Obține numele lunii în engleză
@@ -334,22 +334,21 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
                         if days_until_due < 0:
                             day_unit = "zi" if abs(days_until_due) == 1 else "zile"
                             due_message = (
-                                f"Restanță de {balance:.2f} lei, termen depășit cu {abs(days_until_due)} {day_unit}"
+                                f"Restanță de {issued_value:.2f} lei, termen depășit cu {abs(days_until_due)} {day_unit}"
                             )
                         elif days_until_due == 0:
-                            due_message = f"De achitat astăzi, {datetime.now().strftime('%d.%m.%Y')}: {balance:.2f} lei"
+                            due_message = f"De achitat astăzi, {datetime.now().strftime('%d.%m.%Y')}: {issued_value:.2f} lei"
                         else:
                             day_unit = "zi" if days_until_due == 1 else "zile"
                             due_message = (
-                                f"Următoarea sumă de {balance:.2f} lei este scadentă "
+                                f"Următoarea sumă de {issued_value:.2f} lei este scadentă "
                                 f"pe luna {month_name_ro} ({days_until_due} {day_unit})"
                             )
 
-                        attributes["Stare plată"] = due_message
+                        attributes[f"Factură {idx}"] = due_message
 
                     except ValueError:
-                        month_name_ro = "necunoscut"
-                        attributes["Plată scadentă"] = "Data scadenței necunoscută"
+                        attributes[f"Factură {idx}"] = "Data scadenței necunoscută"
 
         # Adăugăm separatorul explicit înainte de total sold
         attributes["---------------"] = ""
@@ -401,7 +400,7 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
         self.year = year
         self._attr_name = f"Arhivă - {year}"
         self._attr_unique_id = f"{DOMAIN}_arhiva_{self.config_entry.entry_id}_{self.year}"
-        self._attr_entity_id = f"sensor.arhiva_{self.config_entry.data['cod_incasare']}_{self.year}" # corect
+        self._attr_entity_id = f"sensor.{DOMAIN}_arhiva_{self.config_entry.data['cod_incasare']}_{self.year}" # corect
 
 
         _LOGGER.debug(
