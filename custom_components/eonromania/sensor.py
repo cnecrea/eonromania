@@ -328,15 +328,32 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
                         parsed_date = datetime.strptime(raw_date, "%d.%m.%Y")
                         month_name_en = parsed_date.strftime("%B")  # Obține numele lunii în engleză
                         month_name_ro = MONTHS_RO.get(month_name_en, "necunoscut")
+
+                        # Calculăm zilele rămase până la data scadenței
+                        days_until_due = (parsed_date - datetime.now()).days
+                        if days_until_due < 0:
+                            day_unit = "zi" if abs(days_until_due) == 1 else "zile"
+                            due_message = (
+                                f"Restanță de {balance:.2f} lei, termen depășit cu {abs(days_until_due)} {day_unit}"
+                            )
+                        elif days_until_due == 0:
+                            due_message = f"De achitat astăzi, {datetime.now().strftime('%d.%m.%Y')}: {balance:.2f} lei"
+                        else:
+                            day_unit = "zi" if days_until_due == 1 else "zile"
+                            due_message = (
+                                f"Următoarea sumă de {balance:.2f} lei este scadentă "
+                                f"pe luna {month_name_ro} ({days_until_due} {day_unit})"
+                            )
+
+                        attributes["Stare plată"] = due_message
+
                     except ValueError:
                         month_name_ro = "necunoscut"
-
-                    # Adăugăm atributele cu noile denumiri
-                    attributes[f"restanțe pe luna {month_name_ro}"] = f"{balance:.2f} lei"
+                        attributes["Plată scadentă"] = "Data scadenței necunoscută"
 
         # Adăugăm separatorul explicit înainte de total sold
         attributes["---------------"] = ""
-        attributes["Total neachitat"] = f"{total_sold:.2f} lei" if total_sold > 0 else "0.00 lei"
+        attributes["Total neachitat"] = f"{total_sold:,.2f} lei" if total_sold > 0 else "0.00 lei"
         attributes["attribution"] = ATTRIBUTION
 
         return attributes
