@@ -20,16 +20,18 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         DateContractSensor(coordinators["dateuser"], config_entry),
     ]
 
-    is_prosum = coordinators["dateuser"].data.get("isProsum", False)
-    _LOGGER.debug("Coordinator dateuser data - isProsum: %s", is_prosum)
     # Adăugăm senzorul FacturaRestantaSensor
     factura_restanta_data = coordinators.get("facturasold")
     if factura_restanta_data:
         sensors.append(FacturaRestantaSensor(factura_restanta_data, config_entry))
-     # Adăugăm senzorul FacturaProsumatorRestantaSensor doar pentru prosumatori
-    factura_prosumator_restanta_data = coordinators.get("facturasoldprosum")
-    if factura_prosumator_restanta_data and is_prosum:
-        sensors.append(FacturaProsumatorRestantaSensor(factura_prosumator_restanta_data, config_entry))
+
+    is_prosum = coordinators["dateuser"].data.get("isProsum", False)
+    _LOGGER.debug("Coordinator dateuser data - isProsum: %s", is_prosum)
+    # Adăugăm senzorul FacturaProsumatorRestantaSensor doar pentru prosumatori
+    if is_prosum:
+        factura_prosumator_restanta_data = coordinators.get("facturasoldprosum")
+        if factura_prosumator_restanta_data:
+            sensors.append(FacturaProsumatorRestantaSensor(factura_prosumator_restanta_data, config_entry))
         
     # Adăugăm senzori pentru fiecare dispozitiv din `indexDetails`
     citireindex_data = coordinators["citireindex"].data
