@@ -26,5 +26,6 @@ URL_DATEUSER = "https://api2.eon.ro/partners/v2/account-contracts/{cod_incasare}
 URL_CITIREINDEX = "https://api2.eon.ro/meterreadings/v1/meter-reading/{cod_incasare}/index"
 URL_ARHIVA = "https://api2.eon.ro/meterreadings/v1/meter-reading/{cod_incasare}/history"
 URL_FACTURASOLD = "https://api2.eon.ro/invoices/v1/invoices/invoice-balance?accountContract={cod_incasare}"
+URL_FACTURASOLD_PROSUM = "https://api2.eon.ro/invoices/v1/invoices/invoice-balance-prosum?accountContract={cod_incasare}"
 
 ATTRIBUTION = "Date furnizate de E-ON România"
