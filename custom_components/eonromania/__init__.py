@@ -56,13 +56,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         update_method=lambda: _fetch_facturasold_data(hass, entry),
         update_interval=update_interval,
     )
-
+  # Coordinator pentru soldul facturilor prosumator
+    facturasold_prosum_coordinator = DataUpdateCoordinator(
+        hass,
+        _LOGGER,
+        name=f"{DOMAIN}_facturasold_prosum_coordinator",
+        update_method=lambda: _fetch_facturasold_prosum_data(hass, entry),
+        update_interval=update_interval,
+    )
     # Salvăm coordinatorii
     hass.data[DOMAIN][entry.entry_id] = {
         "dateuser": dateuser_coordinator,
         "citireindex": citireindex_coordinator,
         "arhiva": arhiva_coordinator,
         "facturasold": facturasold_coordinator,
+        "facturasoldprosum": facturasold_prosum_coordinator,
     }
 
     # Actualizare inițială
@@ -70,6 +78,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     await citireindex_coordinator.async_config_entry_first_refresh()
     await arhiva_coordinator.async_config_entry_first_refresh()
     await facturasold_coordinator.async_config_entry_first_refresh()
+    await facturasold_prosum_coordinator.async_config_entry_first_refresh()
 
     # Adăugarea platformelor (senzori, etc.)
     _LOGGER.debug("Pregătire pentru forward platform setup pentru %s", entry.entry_id)
@@ -180,6 +189,33 @@ async def _fetch_facturasold_data(hass, entry):
             )
             return None
 
+
+# Obține datele despre soldul facturilor de prosumator
+async def _fetch_facturasold_prosum_data(hass, entry):
+    """Obține datele despre soldul facturilor de la API-ul E-ON România."""
+    token = await _fetch_token(hass, entry.data["username"], entry.data["password"])
+    if not token:
+        _LOGGER.error("Nu s-a putut obține un token valid pentru soldul facturilor.")
+        return None
+
+    url = URL_FACTURASOLD_PROSUM.format(cod_incasare=entry.data["cod_incasare"])
+    headers = HEADERS_POST.copy()
+    headers["Authorization"] = f"Bearer {token}"
+
+    session = hass.helpers.aiohttp_client.async_get_clientsession()
+    async with session.get(url, headers=headers) as response:
+        if response.status == 200:
+            data = await response.json()
+            _LOGGER.debug("Răspuns API pentru URL_FACTURASOLD_PROSUM: %s", data)
+            return data
+        else:
+            _LOGGER.error(
+                "Eroare la obținerea datelor despre soldul facturilor: Status=%s, Răspuns=%s",
+                response.status,
+                await response.text(),
+            )
+            return None
+            
 # Obține un token de autentificare
 async def _fetch_token(hass, username, password):
     """Obține un token de autentificare de la API-ul E-ON România."""
