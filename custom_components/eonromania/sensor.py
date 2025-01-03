@@ -401,9 +401,9 @@ class FacturaProsumatorRestantaSensor(CoordinatorEntity, SensorEntity):
         """Inițializează senzorul FacturaProsumatorRestantaSensor."""
         super().__init__(coordinator)
         self.config_entry = config_entry
-        self._attr_unique_id = f"{DOMAIN}_factura_restanta_{self.config_entry.entry_id}"
+        self._attr_unique_id = f"{DOMAIN}_factura_prosumator_restanta_{self.config_entry.entry_id}"
         self._attr_name = "Factură prosumator restantă"
-        self._entity_id = f"sensor.factura_restanta_{self.config_entry.data['cod_incasare']}"
+        self._entity_id = f"sensor.factura_prosumator_restanta_{self.config_entry.data['cod_incasare']}"
         self._icon = "mdi:file-document-alert-outline"
 
     @property
