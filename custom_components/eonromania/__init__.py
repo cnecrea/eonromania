@@ -5,7 +5,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DOMAIN, DEFAULT_UPDATE, URL_DATEUSER, URL_CITIREINDEX, URL_ARHIVA, URL_FACTURASOLD, HEADERS_POST, URL_LOGIN
+from .const import DOMAIN, DEFAULT_UPDATE, URL_DATEUSER, URL_CITIREINDEX, URL_ARHIVA, URL_FACTURASOLD, URL_FACTURASOLD_PROSUM,HEADERS_POST, URL_LOGIN
 
 _LOGGER = logging.getLogger(__name__)
 
