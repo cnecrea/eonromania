@@ -6,7 +6,7 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.sensor import SensorEntity
-from .const import DOMAIN
+from .const import DOMAIN, ATTRIBUTION
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -107,6 +107,7 @@ class DateContractSensor(CoordinatorEntity, SensorEntity):
             "Următoarea revizie tehnică": raw_data.get("revisionExpirationDate"),
         }
         _LOGGER.debug("Senzor DateContractSensor - Atribute: %s", attributes)
+        attributes["attribution"] = ATTRIBUTION
         return attributes
 
     @property
@@ -231,6 +232,7 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
         }
 
         _LOGGER.debug("Senzor CitireIndexSensor - Atribute: %s", attributes)
+        attributes["attribution"] = ATTRIBUTION
         return attributes
 
     @property
@@ -335,6 +337,7 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
         # Adăugăm separatorul explicit înainte de total sold
         attributes["---------------"] = ""
         attributes["Total neachitat"] = f"{total_sold:.2f} lei" if total_sold > 0 else "0.00 lei"
+        attributes["attribution"] = ATTRIBUTION
 
         return attributes
 
@@ -431,6 +434,7 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
                     attributes[f"Metodă de citire {month}"] = reading_type
 
         _LOGGER.debug("Senzor ArhivaSensor - Atribute generate: %s", attributes)
+        attributes["attribution"] = ATTRIBUTION
         return attributes
 
     @property
