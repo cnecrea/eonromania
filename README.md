@@ -129,6 +129,18 @@ entities:
 
 ---
 
+## ☕ Susține dezvoltatorul
+
+Dacă ți-a plăcut această integrare și vrei să sprijini munca depusă, **invită-mă la o cafea**! 🫶  
+Nu costă nimic, iar contribuția ta ajută la dezvoltarea viitoare a proiectului. 🙌  
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Susține%20dezvoltatorul-orange?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/cnecrea)
+
+Mulțumesc pentru sprijin și apreciez fiecare gest de susținere! 🤗
+
+--- 
+
+
 ## 🧑‍💻 Contribuții
 
 Contribuțiile sunt binevenite! Simte-te liber să trimiți un pull request sau să raportezi probleme [aici](https://github.com/cnecrea/eonromania/issues).
