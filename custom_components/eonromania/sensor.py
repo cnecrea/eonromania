@@ -11,6 +11,7 @@ from .const import DOMAIN, ATTRIBUTION
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
     """
     Configurează senzorii pentru intrarea dată (config_entry).
@@ -161,9 +162,23 @@ class DateContractSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self):
+        # Construiește adresa completă (full_address)
+        data = self.coordinator.data.get("dateuser", {})
+        address_obj = data.get("consumptionPointAddress", {})
+        street_obj = address_obj.get("street", {})
+        street_type = street_obj.get("streetType", {}).get("label", "Strada")
+        street_name = street_obj.get("streetName", "Necunoscută")
+        street_no = address_obj.get("streetNumber", "N/A")
+        apartment = address_obj.get("apartment", "N/A")
+        locality_name = address_obj.get("locality", {}).get("localityName", "Necunoscut")
+
+        full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
+
+        # Returnează device_info cu full_address inclus
+
         return {
-            "identifiers": {(DOMAIN, "eonromania")},
-            "name": "E-ON România",
+            "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
+            "name": f"E-ON România - {full_address} ({self.config_entry.data['cod_incasare']})",
             "manufacturer": "Ciprian Nicolae (cnecrea)",
             "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
@@ -292,9 +307,23 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self):
+        # Construiește adresa completă (full_address)
+        data = self.coordinator.data.get("dateuser", {})
+        address_obj = data.get("consumptionPointAddress", {})
+        street_obj = address_obj.get("street", {})
+        street_type = street_obj.get("streetType", {}).get("label", "Strada")
+        street_name = street_obj.get("streetName", "Necunoscută")
+        street_no = address_obj.get("streetNumber", "N/A")
+        apartment = address_obj.get("apartment", "N/A")
+        locality_name = address_obj.get("locality", {}).get("localityName", "Necunoscut")
+
+        full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
+
+        # Returnează device_info cu full_address inclus
+
         return {
-            "identifiers": {(DOMAIN, "eonromania")},
-            "name": "E-ON România",
+            "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
+            "name": f"E-ON România - {full_address} ({self.config_entry.data['cod_incasare']})",
             "manufacturer": "Ciprian Nicolae (cnecrea)",
             "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
@@ -424,9 +453,23 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self):
+        # Construiește adresa completă (full_address)
+        data = self.coordinator.data.get("dateuser", {})
+        address_obj = data.get("consumptionPointAddress", {})
+        street_obj = address_obj.get("street", {})
+        street_type = street_obj.get("streetType", {}).get("label", "Strada")
+        street_name = street_obj.get("streetName", "Necunoscută")
+        street_no = address_obj.get("streetNumber", "N/A")
+        apartment = address_obj.get("apartment", "N/A")
+        locality_name = address_obj.get("locality", {}).get("localityName", "Necunoscut")
+
+        full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
+
+        # Returnează device_info cu full_address inclus
+
         return {
-            "identifiers": {(DOMAIN, "eonromania")},
-            "name": "E-ON România",
+            "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
+            "name": f"E-ON România - {full_address} ({self.config_entry.data['cod_incasare']})",
             "manufacturer": "Ciprian Nicolae (cnecrea)",
             "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
@@ -526,9 +569,23 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self):
+        # Construiește adresa completă (full_address)
+        data = self.coordinator.data.get("dateuser", {})
+        address_obj = data.get("consumptionPointAddress", {})
+        street_obj = address_obj.get("street", {})
+        street_type = street_obj.get("streetType", {}).get("label", "Strada")
+        street_name = street_obj.get("streetName", "Necunoscută")
+        street_no = address_obj.get("streetNumber", "N/A")
+        apartment = address_obj.get("apartment", "N/A")
+        locality_name = address_obj.get("locality", {}).get("localityName", "Necunoscut")
+
+        full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
+
+        # Returnează device_info cu full_address inclus
+
         return {
-            "identifiers": {(DOMAIN, "eonromania")},
-            "name": "E-ON România",
+            "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
+            "name": f"E-ON România - {full_address} ({self.config_entry.data['cod_incasare']})",
             "manufacturer": "Ciprian Nicolae (cnecrea)",
             "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
@@ -620,9 +677,23 @@ class ArhivaPlatiSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self):
+        # Construiește adresa completă (full_address)
+        data = self.coordinator.data.get("dateuser", {})
+        address_obj = data.get("consumptionPointAddress", {})
+        street_obj = address_obj.get("street", {})
+        street_type = street_obj.get("streetType", {}).get("label", "Strada")
+        street_name = street_obj.get("streetName", "Necunoscută")
+        street_no = address_obj.get("streetNumber", "N/A")
+        apartment = address_obj.get("apartment", "N/A")
+        locality_name = address_obj.get("locality", {}).get("localityName", "Necunoscut")
+
+        full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
+
+        # Returnează device_info cu full_address inclus
+
         return {
-            "identifiers": {(DOMAIN, "eonromania")},
-            "name": "E-ON România",
+            "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
+            "name": f"E-ON România - {full_address} ({self.config_entry.data['cod_incasare']})",
             "manufacturer": "Ciprian Nicolae (cnecrea)",
             "model": "E-ON România",
             "entry_type": DeviceEntryType.SERVICE,
