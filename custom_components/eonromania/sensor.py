@@ -340,11 +340,28 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
         return "Da" if any(item.get("issuedValue", 0) > 0 for item in data) else "Nu"
 
     @property
-    def extra_state_attributes(self):
-        """Atribute adiționale."""
+    def state(self):
+        """Returnează starea principală (Da/Nu)."""
+        # Verificăm dacă `facturasold` există și este o listă
         data = self.coordinator.data.get("facturasold")
         if not data or not isinstance(data, list):
-            return {}
+            # Dacă `facturasold` nu există, considerăm că nu sunt facturi neachitate
+            return "Nu"
+        # Verificăm dacă există cel puțin o factură neachitată
+        return "Da" if any(item.get("issuedValue", 0) > 0 for item in data) else "Nu"
+
+    @property
+    def extra_state_attributes(self):
+        """Atribute adiționale."""
+        # Verificăm dacă `facturasold` există și este o listă
+        data = self.coordinator.data.get("facturasold")
+        if not data or not isinstance(data, list):
+            # Dacă `facturasold` nu există, returnăm atribute implicite
+            return {
+                "Total neachitat": "0.00 lei",
+                "Detalii": "Nu există facturi disponibile",
+                "attribution": ATTRIBUTION
+            }
 
         attributes = {}
         total_sold = 0.0
@@ -386,6 +403,7 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
         attributes["---------------"] = ""
         attributes["Total neachitat"] = f"{total_sold:,.2f} lei" if total_sold > 0 else "0.00 lei"
         attributes["attribution"] = ATTRIBUTION
+
         return attributes
 
     @property
@@ -570,7 +588,7 @@ class ArhivaPlatiSensor(CoordinatorEntity, SensorEntity):
             attributes[f"Plată factură luna {month_name}"] = f"{payment_value:.2f} lei"
 
         attributes["---------------"] = ""
-        attributes["Total plăți"] = len(payments_list)
+        attributes["Plăți efectuate"] = len(payments_list)
         attributes["Sumă totală"] = f"{total_value:.2f} lei"
         attributes["attribution"] = "Date furnizate de E-ON România"
         return attributes
