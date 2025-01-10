@@ -9,6 +9,9 @@
     "documentation": "https://github.com/cnecrea/eonromania",
     "issue_tracker": "https://github.com/cnecrea/eonromania/issues",
     "render_readme": true,
+    "content_in_root": false,
     "version": "1.0.0",
     "zip_release": true
+    "filename": "eonromania.zip"
+
 }
