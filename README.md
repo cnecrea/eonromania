@@ -7,7 +7,7 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
 ## 🌟 Caracteristici
 
 ### Senzor `Date contract`:
-  - **🔍 Monitorizare Generală**:
+  - **🔍 Monitorizare generală**:
       - Afișează informații detaliate despre contractul de furnizare energie.
   - **📊 Atribute disponibile**:
       - **Cod încasare**: Codul unic al contractului.
@@ -26,8 +26,8 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
       - **Data inițierii reviziei**: Data la care începe următoarea revizie tehnică.
       - **Revizie tehnică**: Data expirării următoarei revizii tehnice.
 
-### Senzor `Index Curent`:
-  - **🔍 Monitorizare Date Index**:
+### Senzor `Index curent`:
+  - **🔍 Monitorizare date index**:
       - Afișează informații detaliate despre indexul curent al contorului.
   - **📊 Atribute disponibile**:
       - **Numărul dispozitivului**: ID-ul dispozitivului asociat contorului.
@@ -44,19 +44,43 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
       - **Poate fi modificat până la**: Data și ora până la care citirea poate fi modificată.
 
 ### Senzor `Arhivă`:
-- **📚 Date Istorice**:
+- **📚 Date istorice**:
   - Afișează indexurile lunare pentru fiecare an disponibil.
 - **📊 Atribute disponibile**:
   - **An**: Anul pentru care se afișează datele.
   - **Indexuri lunare**: Indexurile consumului pentru fiecare lună.
 
 
-### Senzor `Factură Restantă`:
-- **📄 Detalii Sold**:
+### Senzor `Factură restantă`:
+- **📄 Detalii sold**:
   - Afișează dacă există facturi restante.
 - **📊 Atribute disponibile**:
   - **Restanțe pe luna [numele lunii]**: Soldul restant pentru luna respectivă.
   - **Total sold**: Suma totală a soldului restant, afișată în lei.
+
+
+
+### Senzor `Citire permisă`:
+- **🔍 Verificare perioadă trimitere**:
+    - Afișează dacă perioada de trimitere a indexului este activă.
+- **📊 Atribute disponibile**:
+    - **ID intern citire contor (SAP)**: Identificator unic pentru punctul de măsurare.
+    - **Perioada permisă pentru trimitere**: Intervalul de timp în care indexul poate fi transmis.
+    - **Cod încasare**: Codul unic al contractului.
+- **🔄 Starea senzorului**:
+    - **Da**: Trimiterea indexului este permisă.
+    - **Nu**: Trimiterea indexului nu este permisă.
+    - **Indisponibil**: Datele nu sunt disponibile.
+
+
+### Buton `Trimite index`:
+- **🔘 Buton interactiv**:
+    - Permite trimiterea indexului către API-ul E-ON România, utilizabil atât prin interfața Home Assistant, cât și prin automatizări.
+- **📊 Funcționalități**:
+    - Determină valoarea indexului din entitatea `input_number.gas_meter_reading`.
+    - Validează și trimite indexul folosind endpoint-ul API.
+
+
 
 ---
 
