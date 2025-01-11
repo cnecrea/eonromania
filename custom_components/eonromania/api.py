@@ -137,6 +137,51 @@ class EonApiClient:
 
         return results
 
+
+    async def async_trimite_index(self, account_contract: str, ablbelnr: str, index_value: int):
+        """Trimite indexul către API-ul E-ON."""
+        if not account_contract or not ablbelnr or not isinstance(index_value, int):
+            _LOGGER.error("Parametrii invalizi pentru trimiterea indexului.")
+            return None
+
+        if not await self._ensure_token():
+            _LOGGER.error("Token invalid sau expirat. Nu se poate trimite indexul.")
+            return None
+
+        payload = {
+            "accountContract": account_contract,
+            "channel": "WEBSITE",
+            "indexes": [{"ablbelnr": ablbelnr, "indexValue": index_value}],
+        }
+
+        try:
+            headers = {**HEADERS_POST, "Authorization": f"Bearer {self._token}"}
+            async with self._session.post(URLS["trimite_index"], json=payload, headers=headers, timeout=10) as resp:
+                if resp.status == 200:
+                    _LOGGER.debug("Indexul a fost trimis cu succes pentru %s", account_contract)
+                    return await resp.json()
+                elif resp.status == 401:
+                    _LOGGER.warning("Token invalid. Se încearcă login-ul și retrimiterea indexului.")
+                    self._token = None
+                    if await self.async_login():
+                        return await self.async_trimite_index(account_contract, ablbelnr, index_value)
+                    else:
+                        _LOGGER.error("Re-login eșuat. Nu se poate trimite indexul.")
+                        return None
+                else:
+                    response_text = await resp.text()
+                    _LOGGER.error(
+                        "Eroare la trimiterea indexului. Status=%s, Răspuns=%s",
+                        resp.status,
+                        response_text,
+                    )
+                    return None
+        except Exception as e:
+            _LOGGER.exception("Eroare la conectarea cu API-ul: %s", e)
+            return None
+
+
+
     async def _ensure_token(self) -> bool:
         """Asigură că avem un token valid, inițiind login dacă e necesar."""
         if self._token is None:
