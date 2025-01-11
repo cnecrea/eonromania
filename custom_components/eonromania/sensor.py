@@ -1,4 +1,5 @@
 """Platforma Sensor pentru EON România."""
+
 import logging
 from datetime import datetime
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -6,6 +7,8 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.components.button import ButtonEntity
+
 
 from .const import DOMAIN, ATTRIBUTION
 
@@ -20,7 +23,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
       1. Obținem coordinatorul din hass.data (include datele din API).
       2. Creăm lista locală `sensors`.
       3. Adăugăm senzorii de bază (DateContractSensor, FacturaRestantaSensor).
-      4. Identificăm dispozitivele din citireindex_data și creăm senzorii CitireIndexSensor.
+      4. Identificăm dispozitivele din citireindex_data și creăm senzorii CitireIndexSensor și CitirePermisaSensor.
       5. Identificăm anii din arhiva_data și creăm senzorii ArhivaSensor.
       6. Identificăm toate plățile (payments), le grupăm pe ani și creăm senzorii PaymentsHistorySensor.
       7. Apelăm `async_add_entities` pentru a înregistra senzorii în Home Assistant.
@@ -37,7 +40,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     sensors.append(DateContractSensor(coordinator, config_entry))
     sensors.append(FacturaRestantaSensor(coordinator, config_entry))
 
-    # 4. Gestionăm CitireIndexSensor
+    # 4. Gestionăm CitireIndexSensor și CitirePermisaSensor
     citireindex_data = coordinator.data.get("citireindex")
     if citireindex_data:
         devices = citireindex_data.get("indexDetails", {}).get("devices", [])
@@ -47,6 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
             device_number = device.get("deviceNumber", "unknown_device")
             if device_number not in seen_devices:
                 sensors.append(CitireIndexSensor(coordinator, config_entry, device_number))
+                sensors.append(CitirePermisaSensor(coordinator, config_entry, device_number))
                 seen_devices.add(device_number)
             else:
                 _LOGGER.warning("Dispozitiv duplicat ignorat: %s", device_number)
@@ -84,6 +88,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
     # 7. Înregistrăm senzorii în Home Assistant
     async_add_entities(sensors)
+
+
 
 # ------------------------------------------------------------------------
 # DateContractSensor
@@ -245,9 +251,16 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
                     first_index = indexes[0]
                     attributes = {}
 
+
+
                     # Adăugăm atributele doar dacă nu sunt `null`
                     if dev.get("deviceNumber") is not None:
                         attributes["Numărul dispozitivului"] = dev.get("deviceNumber")
+
+                    # Adăugăm `ablbelnr`
+                    if first_index.get("ablbelnr") is not None:
+                        attributes["Numărul ID intern citire contor"] = first_index.get("ablbelnr")
+
                     if reading_period.get("startDate") is not None:
                         attributes["Data de începere a următoarei citiri"] = reading_period.get("startDate")
                     if reading_period.get("endDate") is not None:
@@ -282,6 +295,7 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
                         attributes["Trimis la"] = first_index.get("sentAt")
                     if first_index.get("canBeChangedTill") is not None:
                         attributes["Poate fi modificat până la"] = first_index.get("canBeChangedTill")
+
 
                     # Adăugăm sursa
                     attributes["attribution"] = ATTRIBUTION
@@ -357,7 +371,7 @@ class FacturaRestantaSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"{DOMAIN}_factura_restanta_{config_entry.entry_id}"
         self._attr_name = "Factură restantă"
         self._attr_entity_id = f"sensor.{DOMAIN}_factura_restanta_{config_entry.data['cod_incasare']}"
-        self._icon = "mdi:file-document-alert-outline"
+        self._icon = "mdi:invoice-text-arrow-left"
 
     @property
     def state(self):
@@ -582,7 +596,6 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
         full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
 
         # Returnează device_info cu full_address inclus
-
         return {
             "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
             "name": f"E-ON România - {full_address} ({self.config_entry.data['cod_incasare']})",
@@ -690,6 +703,112 @@ class ArhivaPlatiSensor(CoordinatorEntity, SensorEntity):
         full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
 
         # Returnează device_info cu full_address inclus
+
+        return {
+            "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
+            "name": f"E-ON România - {full_address} ({self.config_entry.data['cod_incasare']})",
+            "manufacturer": "Ciprian Nicolae (cnecrea)",
+            "model": "E-ON România",
+            "entry_type": DeviceEntryType.SERVICE,
+        }
+
+# ------------------------------------------------------------------------
+# CitirePermisaSensor
+# ------------------------------------------------------------------------
+
+class CitirePermisaSensor(CoordinatorEntity, SensorEntity):
+    """Senzor pentru verificarea permisiunii de citire a indexului."""
+
+    def __init__(self, coordinator, config_entry, device_number):
+        super().__init__(coordinator)
+        self.config_entry = config_entry
+        self.device_number = device_number
+        self._attr_name = "Citire permisă"
+        self._attr_unique_id = f"{DOMAIN}_citire_permisa_{config_entry.entry_id}"
+        self._attr_entity_id = f"sensor.{DOMAIN}_citire_permisa_{config_entry.data['cod_incasare']}"
+        self._state = None  # Starea inițială
+
+    @property
+    def state(self):
+        """Determină starea senzorului în funcție de datele curente."""
+        citireindex_data = self.coordinator.data.get("citireindex")
+        if not citireindex_data:
+            return "Indisponibil"
+
+        reading_period = citireindex_data.get("readingPeriod", {})
+        index_details = citireindex_data.get("indexDetails", {})
+        devices = index_details.get("devices", [])
+
+        # Extragem datele relevante
+        start_date_str = reading_period.get("startDate")
+        can_be_changed_till_str = (
+            devices[0]["indexes"][0].get("canBeChangedTill") if devices else None
+        )
+
+        try:
+            today = datetime.now()
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d") if start_date_str else None
+            can_be_changed_till = datetime.strptime(can_be_changed_till_str, "%Y-%m-%d %H:%M:%S") if can_be_changed_till_str else None
+
+            if start_date and can_be_changed_till:
+                if today < start_date:
+                    return "Nu"
+                elif start_date <= today <= can_be_changed_till:
+                    return "Da"
+                else:
+                    return "Nu"
+            return "Nu"
+        except Exception as e:
+            _LOGGER.error("Eroare la determinarea stării senzorului: %s", e)
+            return "Eroare"
+
+    @property
+    def extra_state_attributes(self):
+        """Afișează informații suplimentare despre senzor."""
+        citireindex_data = self.coordinator.data.get("citireindex")
+        if not citireindex_data:
+            return {}
+
+        index_details = citireindex_data.get("indexDetails", {})
+        devices = index_details.get("devices", [])
+        reading_period = citireindex_data.get("readingPeriod", {})
+
+        # Găsim device-ul potrivit
+        for dev in devices:
+            if dev.get("deviceNumber") == self.device_number:
+                indexes = dev.get("indexes", [{}])[0]
+                can_be_changed_till = indexes.get("canBeChangedTill")
+
+                return {
+                    "ID intern citire contor (SAP)": indexes.get("ablbelnr", "Necunoscut"),
+                    "Indexul poate fi trimis până la": can_be_changed_till or "Perioada nu a fost stabilită",
+                    "Cod încasare": self.config_entry.data["cod_incasare"],
+                }
+        return {}
+
+    @property
+    def icon(self):
+        """Returnează iconița în funcție de starea senzorului."""
+        if self.state == "Da":
+            return "mdi:clock-check-outline" 
+        elif self.state == "Nu":
+            return "mdi:clock-alert-outline" 
+        else:
+            return "mdi:cog-stop-outline"
+
+    @property
+    def device_info(self):
+        """Returnează informațiile dispozitivului."""
+        data = self.coordinator.data.get("dateuser", {})
+        address_obj = data.get("consumptionPointAddress", {})
+        street_obj = address_obj.get("street", {})
+        street_type = street_obj.get("streetType", {}).get("label", "Strada")
+        street_name = street_obj.get("streetName", "Necunoscută")
+        street_no = address_obj.get("streetNumber", "N/A")
+        apartment = address_obj.get("apartment", "N/A")
+        locality_name = address_obj.get("locality", {}).get("localityName", "Necunoscut")
+
+        full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
 
         return {
             "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
