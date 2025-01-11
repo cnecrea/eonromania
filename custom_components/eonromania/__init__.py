@@ -8,6 +8,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
 from .api import EonApiClient
 from .coordinator import EonRomaniaCoordinator
+from . import sensor, button
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -15,6 +17,8 @@ async def async_setup(hass: HomeAssistant, config: dict):
     """Configurează integrarea globală EON România, dacă e necesar."""
     _LOGGER.debug("Inițializarea globală a integrării %s", DOMAIN)
     return True
+
+PLATFORMS = ["sensor", "button"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Configurează integrarea pentru o anumită intrare (config entry)."""
@@ -47,8 +51,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         "api_client": api_client,
     }
 
-    # Încărcăm platformele (de exemplu, "sensor")
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+    # Încărcăm platformele
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
