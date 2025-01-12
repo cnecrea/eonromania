@@ -6,6 +6,7 @@
 - [Nu îmi apare indexul curent. De ce?](#nu-îmi-apare-indexul-curent-de-ce)
 - [Nu îmi apare senzorul citire permisă. De ce?](#nu-îmi-apare-senzorul-citire-permisă-de-ce)
 - [Vreau să trimit indexul de la gaz de forma automată. De ce am nevoie?](#vreau-să-trimit-indexul-de-la-gaz-de-forma-automată-de-ce-am-nevoie)
+- [Am instalat un cititor de contor gaz. Cum fac automatizarea?](#am-instalat-un-cititor-de-contor-gaz-cum-fac-automatizarea)
 - [Îmi place acest proiect. Cum pot să-l susțin?](#îmi-place-acest-proiect-cum-pot-să-l-susțin)
 ---
 
@@ -208,6 +209,78 @@ Acest cod indică faptul că butonul este folosit pentru a trimite indexul și u
   - De fiecare dată când există consum, impulsurile sunt convertite într-o valoare numerică și adunate în entitatea input_number.
 
 Astfel, hardware-ul contorului de gaz este responsabil pentru detectarea consumului și actualizarea valorii input_number, iar codul din integrare permite trimiterea automată a acestor date.
+
+---
+# Am instalat un cititor de contor gaz. Cum fac automatizarea?
+**Răspuns:**  
+Dacă ai un cititor de gaz care incrementează consumul în entitatea **input_number.gas_meter_reading**, poți folosi următorul exemplu de automatizare.
+
+**Principii utilizate în exemplul de automatizare:**
+
+1. **Declanșatorul automatizării:**
+   - Automatizarea rulează în **ziua 9 a fiecărei luni.**
+  
+2. **Acțiuni definite:**
+   - **Ora 9:00 dimineața**: Trimiterea unui mesaj SMS pe telefon (sau o notificare utilizând serviciul notify.notify).
+   - **Ora 12:00**: Activarea butonului “**Trimite index**” prin intermediul integrării existente.
+
+**Exemplu de automatizare în YAML:**
+```yaml
+alias: "AUTOMATIZARE --- GAZ: Transmitere index"
+description: >-
+  Trimite notificări la ora 09:00 și apasă butonul pentru trimiterea indexului
+  la ora 12:00.
+triggers:
+  - at: "09:00:00"
+    trigger: time
+  - at: "12:00:00"
+    trigger: time
+conditions:
+  - condition: template
+    value_template: "{{ now().day == 9 }}"
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.now.hour == 9 }}"
+        sequence:
+          - metadata: {}
+            data:
+              target: 4XXXXXXXXXX
+              message: >-
+                E·ON GAZ (mesaj automat): Pentru luna {{
+                states('sensor.current_month_translated') }}, noul index este de
+                {{ (states('input_number.gas_meter_reading') | float | round(0))
+                }} {{ state_attr('sensor.index_curent', 'unit_of_measurement')
+                }}
+            alias: SMS pe telefon
+            action: notify.smsto
+        alias: "Optiunea 1: Trimite SMS la ora 09:00"
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.now.hour == 12 }}"
+        sequence:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: button.eonromania_trimite_index_XXXXXXXXXXXX
+            action: button.press
+        alias: "Optiunea 2: Trimite index la EON la ora 12:00"
+```
+**Detalii explicative:**
+1. **Declanșatoare:**
+   - Automatizarea este declanșată la ora **09:00** și **12:00**.
+2. **Condiția:**
+   - Automatizarea se rulează doar dacă este **ziua 9 a lunii curente**.
+3. **Acțiuni:**
+   - **Ora 9:00**: Se trimite o notificare prin serviciul notify.notify, afișând indexul curent din **input_number.gas_meter_reading**.
+   - **Ora 12:00**: Se apasă butonul **eonromania_trimite_index_XXXXXXXXXXXX** pentru a trimite indexul.
+> **Notă:**
+> 
+> Înlocuiește **eonromania_trimite_index_XXXXXXXXXXXX** cu ID-ul exact al butonului utilizat în integrarea ta.
+>
+> Dacă dorești să schimbi serviciul de notificare, ajustează notify.notify pentru a corespunde setărilor tale.
+
 
 ---
 
