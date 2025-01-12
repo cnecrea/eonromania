@@ -3,7 +3,7 @@
 - [Am cont DUO, pot folosi integrarea?](#am-cont-duo-pot-folosi-integrarea)
 - [Ce înseamnă index curent?](#ce-înseamnă-index-curent)
 - [Nu îmi apare indexul curent. De ce?](#nu-îmi-apare-indexul-curent-de-ce)
-- [Nu îmi apare senzorul „citire permisă”. De ce?](#nu-imi-apare-senzorul-citire-permisa-de-ce)
+- [Nu îmi apare senzorul citire permisă. De ce?](#nu-îmi-apare-senzorul-citire-permisa-de-ce)
 
 ---
 
@@ -121,11 +121,12 @@ Indexul curent apare doar atunci când se apropie perioada de citire programată
     }
 }
 ```
+
 Înțelegând aceste aspecte, putem concluziona că integrarea nu prezintă o problemă, ci pur și simplu nu are de unde să extragă date pentru acest senzor. Prin urmare, atât timp cât EON nu publică aceste date în format JSON, este logic ca senzorul să nu poată prelua informații pentru a le afișa.
 
 ---
 
-## Nu îmi apare senzorul „citire permisă”. De ce?
+## Nu îmi apare senzorul citire permisă. De ce?
 
 **Răspuns:**  
 Acest lucru se întâmplă din același motiv pentru care „Index curent” nu apare. Te rugăm să consulți explicațiile de mai sus pentru mai multe detalii despre această situație.
