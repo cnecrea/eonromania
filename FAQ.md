@@ -4,7 +4,7 @@
 - [Ce înseamnă index curent?](#ce-înseamnă-index-curent)
 - [Nu îmi apare indexul curent. De ce?](#nu-îmi-apare-indexul-curent-de-ce)
 - [Nu îmi apare senzorul citire permisă. De ce?](#nu-îmi-apare-senzorul-citire-permisă-de-ce)
-- [Vreau să trimit indexul de la gaz de forma automată. De ce am nevoie?](vreau-să-trimit-indexul-de-la-gaz-de-forma-automată-de-ce-am-nevoie)
+- [Vreau să trimit indexul de la gaz de forma automată. De ce am nevoie?](#vreau-să-trimit-indexul-de-la-gaz-de-forma-automată-de-ce-am-nevoie)
 ---
 
 ## Am cont DUO, pot folosi integrarea?
