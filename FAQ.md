@@ -186,7 +186,7 @@ Pentru a trimite indexul de la gaz automat, este important să înțelegem situa
         - **Capacitatea de a citi corect impulsurile**: Senzorul trebuie să fie compatibil cu contorul și să interpreteze semnalele corect, fie că este vorba de un contact reed (magnetic), fie de alte metode.
         - **Integrarea non-invazivă cu contorul**: Soluția hardware trebuie să fie instalată fără să afecteze funcționarea contorului sau să necesite modificări permanente ale acestuia.
 
-După ce partea hardware este pregătită, va fi nevoie de configurarea software pentru trimiterea automată a datelor către platforma de gestionare. Dacă ai întrebări suplimentare despre alegerea sau instalarea hardware-ului, consultă documentația specifică sau contactează furnizorul.
+După ce partea hardware este pregătită, putem trece la următorul pas.
 
   - **2. Dacă analizăm integrarea, observăm că în fișierul button.py există următorul cod:**
 
@@ -202,7 +202,7 @@ După ce partea hardware este pregătită, va fi nevoie de configurarea software
                 return
 
 ```
-Acest cod indică faptul că butonul este folosit pentru a trimite indexul și utilizează un **input_number** pentru a stoca datele.
+Acest cod indică faptul că butonul „Trimite index” din integrare utilizează un input_number pentru a transmite indexul.
 
 **Interpretare**:
   - Partea hardware instalată pe contorul de gaz “**transferă**” impulsurile către entitatea **input_number.gas_meter_reading**.
