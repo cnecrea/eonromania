@@ -1,10 +1,51 @@
 # Întrebări frecvente
 
+- [Cum să adaug integrarea în Home Assistant?](#cum-să-adaug-integrarea-în-home-assistant)
 - [Am cont DUO, pot folosi integrarea?](#am-cont-duo-pot-folosi-integrarea)
 - [Ce înseamnă index curent?](#ce-înseamnă-index-curent)
 - [Nu îmi apare indexul curent. De ce?](#nu-îmi-apare-indexul-curent-de-ce)
 - [Nu îmi apare senzorul citire permisă. De ce?](#nu-îmi-apare-senzorul-citire-permisă-de-ce)
 - [Vreau să trimit indexul de la gaz de forma automată. De ce am nevoie?](#vreau-să-trimit-indexul-de-la-gaz-de-forma-automată-de-ce-am-nevoie)
+
+---
+
+## Cum să adaug integrarea în Home Assistant?
+
+**Răspuns:**  
+HACS (Home Assistant Community Store) permite instalarea și gestionarea integrărilor, temelor și modulelor personalizate create de comunitate. Urmează pașii de mai jos pentru a adăuga un repository extern în HACS și pentru a instala o integrare:
+
+  - **1.	Asigură-te că HACS este instalat**
+      - Verifică dacă HACS este deja instalat în Home Assistant.
+      - Navighează la **Setări** > **Dispozitive și servicii** > **Integrări** și caută "HACS".
+      - Dacă nu este instalat, urmează ghidul oficial de instalare pentru HACS: [HACS Installation Guide](https://hacs.xyz/docs/setup/prerequisites).
+   
+  - **2. Găsește repository-ul extern**
+      - Accesează pagina GitHub a integrării pe care vrei să o adaugi. De exemplu, repository-ul ar putea arăta astfel:  
+  `https://github.com/autorul-integarii/nume-integrare`.
+
+  - **3. Adaugă repository-ul în HACS**
+      - În Home Assistant, mergi la **HACS** din bara laterală.
+      - Apasă pe butonul cu **cele trei puncte** din colțul din dreapta sus și selectează **Repositories**.
+      - În secțiunea "Custom repositories", introdu URL-ul repository-ului extern (de exemplu, `https://github.com/autorul-integarii/nume-integrare`).
+      - Selectează tipul de repository:
+        - **Integration** pentru integrări.
+        - **Plugin** pentru module front-end.
+        - **Theme** pentru teme.
+      - Apasă pe **Add** pentru a adăuga repository-ul.
+
+  - **4. Instalează integrarea**
+      - După ce repository-ul a fost adăugat, mergi la **HACS** > **Integrations**.
+      - Caută numele integrării pe care tocmai ai adăugat-o.
+      - Apasă pe integrare și selectează **Download** sau **Install**.
+      - După instalare, Home Assistant îți poate solicita să repornești sistemul. Urmează instrucțiunile pentru a finaliza configurarea.
+
+  - **5. Configurează integrarea**
+      - După repornire, mergi la **Setări** > **Dispozitive și servicii** > **Adaugă integrare**.
+      - Caută numele integrării instalate și urmează pașii de configurare specifici.
+
+> **Notă:** 
+> Asigură-te că Home Assistant și HACS sunt actualizate la cea mai recentă versiune pentru a evita erorile de compatibilitate.
+
 ---
 
 ## Am cont DUO, pot folosi integrarea?
@@ -167,3 +208,5 @@ Acest cod indică faptul că butonul este folosit pentru a trimite indexul și u
   - De fiecare dată când există consum, impulsurile sunt convertite într-o valoare numerică și adunate în entitatea input_number.
 
 Astfel, hardware-ul contorului de gaz este responsabil pentru detectarea consumului și actualizarea valorii input_number, iar codul din integrare permite trimiterea automată a acestor date.
+
+
