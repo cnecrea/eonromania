@@ -126,13 +126,13 @@ alias: Notificare Index Ridicat
 description: Notificare dacă indexul depășește 1000
 trigger:
   - platform: numeric_state
-    entity_id: sensor.index_curent_002222257503939227
+    entity_id: sensor.eonromania_index_curent_00XXXXXXXXXX
     above: 1000
 action:
   - service: notify.mobile_app_your_phone
     data:
       title: "Index Ridicat Detectat! ⚡"
-      message: "Indexul curent este {{ states('sensor.index_curent_002222257503939227') }}."
+      message: "Indexul curent este {{ states('sensor.eonromania_index_curent_00XXXXXXXXXX') }}."
 mode: single
 ```
 
@@ -143,11 +143,11 @@ Afișează datele despre contract, indexuri și arhivă pe interfața Home Assis
 type: entities
 title: Monitorizare E-ON România
 entities:
-  - entity: sensor.date_contract
+  - entity: sensor.eonromania_date_contract_00XXXXXXXXXX
     name: Date Contract
-  - entity: sensor.index_curent_002222257503939227
+  - entity: sensor.eonromania_index_curent_00XXXXXXXXXX
     name: Index Curent
-  - entity: sensor.arhiva_2024
+  - entity: sensor.eonromania_arhiva_index_00XXXXXXXXXX_2024
     name: Arhivă 2024
 ```
 
