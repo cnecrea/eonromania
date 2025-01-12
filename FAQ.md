@@ -4,7 +4,7 @@
 - [Ce înseamnă index curent?](#ce-înseamnă-index-curent)
 - [Nu îmi apare indexul curent. De ce?](#nu-îmi-apare-indexul-curent-de-ce)
 - [Nu îmi apare senzorul citire permisă. De ce?](#nu-îmi-apare-senzorul-citire-permisă-de-ce)
-
+- [Vreau să trimit indexul de la gaz de forma automată. De ce am nevoie?](vreau-să-trimit-indexul-de-la-gaz-de-forma-automată-de-ce-am-nevoie)
 ---
 
 ## Am cont DUO, pot folosi integrarea?
@@ -130,3 +130,40 @@ Indexul curent apare doar atunci când se apropie perioada de citire programată
 
 **Răspuns:**  
 Acest lucru se întâmplă din același motiv pentru care „[Index curent](#nu-îmi-apare-indexul-curent-de-ce)” nu apare. Te rugăm să consulți explicațiile de mai sus pentru mai multe detalii despre această situație.
+
+
+---
+
+## Vreau să trimit indexul de la gaz de forma automată. De ce am nevoie?
+
+**Răspuns:**  
+Pentru a trimite indexul de la gaz automat, este important să înțelegem situația și cerințele. Sunt necesare două lucruri principale:
+
+  - **1.	Partea hardware pregătită și instalată pe contor, pentru preluarea datelor.**
+      - Este necesar un cititor de contor inteligent (smart meter) sau un senzor capabil să citească impulsurile generate de contor. Acest senzor trebuie să îndeplinească două condiții esențiale:
+        - **Capacitatea de a citi corect impulsurile**: Senzorul trebuie să fie compatibil cu contorul și să interpreteze semnalele corect, fie că este vorba de un contact reed (magnetic), fie de alte metode.
+        - **Integrarea non-invazivă cu contorul**: Soluția hardware trebuie să fie instalată fără să afecteze funcționarea contorului sau să necesite modificări permanente ale acestuia.
+
+După ce partea hardware este pregătită, va fi nevoie de configurarea software pentru trimiterea automată a datelor către platforma de gestionare. Dacă ai întrebări suplimentare despre alegerea sau instalarea hardware-ului, consultă documentația specifică sau contactează furnizorul.
+
+  - **2. Dacă analizăm integrarea, observăm că în fișierul button.py există următorul cod:**
+
+```python
+    async def async_press(self):
+        """Execută trimiterea indexului."""
+        cod_incasare = self.config_entry.data.get("cod_incasare", "necunoscut")
+        try:
+            # Obține indexValue din input_number
+            gas_meter_state = self.coordinator.hass.states.get("input_number.gas_meter_reading")
+            if not gas_meter_state:
+                _LOGGER.error("Entitatea input_number.gas_meter_reading nu este definită.")
+                return
+
+```
+Acest cod indică faptul că butonul este folosit pentru a trimite indexul și utilizează un **input_number** pentru a stoca datele.
+
+**Interpretare**:
+  - Partea hardware instalată pe contorul de gaz “**transferă**” impulsurile către entitatea **input_number.gas_meter_reading**.
+  - De fiecare dată când există consum, impulsurile sunt convertite într-o valoare numerică și adunate în entitatea input_number.
+
+Astfel, hardware-ul contorului de gaz este responsabil pentru detectarea consumului și actualizarea valorii input_number, iar codul din integrare permite trimiterea automată a acestor date.
