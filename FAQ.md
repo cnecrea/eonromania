@@ -6,7 +6,7 @@
 - [Nu îmi apare indexul curent. De ce?](#nu-îmi-apare-indexul-curent-de-ce)
 - [Nu îmi apare senzorul citire permisă. De ce?](#nu-îmi-apare-senzorul-citire-permisă-de-ce)
 - [Vreau să trimit indexul de la gaz de forma automată. De ce am nevoie?](#vreau-să-trimit-indexul-de-la-gaz-de-forma-automată-de-ce-am-nevoie)
-
+- [Îmi place acest proiect. Cum pot să-l susțin?](#îmi-place-acest-proiect-cum-pot-să-l-susțin)
 ---
 
 ## Cum să adaug integrarea în Home Assistant?
@@ -208,5 +208,15 @@ Acest cod indică faptul că butonul este folosit pentru a trimite indexul și u
   - De fiecare dată când există consum, impulsurile sunt convertite într-o valoare numerică și adunate în entitatea input_number.
 
 Astfel, hardware-ul contorului de gaz este responsabil pentru detectarea consumului și actualizarea valorii input_number, iar codul din integrare permite trimiterea automată a acestor date.
+
+---
+
+# Îmi place acest proiect. Cum pot să-l susțin?
+**Răspuns:**  
+  - **Oferă un star pe GitHub** – Apasă butonul **“Star”** de pe pagina repository-ului pentru a arăta aprecierea ta.
+  - **Contribuie cu cod** – Dacă ai idei sau îmbunătățiri, poți crea un pull request cu modificările propuse.
+  - **Raportează probleme** – Dacă întâmpini bug-uri sau ai sugestii, deschide un issue pe GitHub.
+  - **Donează** – Dacă dorești să sprijini proiectul financiar, poți face o donație prin intermediul [Buy Me a Coffee](https://buymeacoffee.com/cnecrea). Orice contribuție este apreciată și ajută la dezvoltarea proiectului!
+  - **Distribuie proiectul** – Recomandă-l prietenilor sau comunității tale pentru a crește vizibilitatea.
 
 
