@@ -129,4 +129,4 @@ Indexul curent apare doar atunci când se apropie perioada de citire programată
 ## Nu îmi apare senzorul citire permisă. De ce?
 
 **Răspuns:**  
-Acest lucru se întâmplă din același motiv pentru care „Index curent” nu apare. Te rugăm să consulți explicațiile de mai sus pentru mai multe detalii despre această situație.
+Acest lucru se întâmplă din același motiv pentru care „[Index curent](#nu-îmi-apare-indexul-curent-de-ce)” nu apare. Te rugăm să consulți explicațiile de mai sus pentru mai multe detalii despre această situație.
