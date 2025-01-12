@@ -17,7 +17,7 @@ HACS (Home Assistant Community Store) permite instalarea și gestionarea integr�
   - **1.	Asigură-te că HACS este instalat**
       - Verifică dacă HACS este deja instalat în Home Assistant.
       - Navighează la **Setări** > **Dispozitive și servicii** > **Integrări** și caută "HACS".
-      - Dacă nu este instalat, urmează ghidul oficial de instalare pentru HACS: [HACS Installation Guide](https://hacs.xyz/docs/setup/prerequisites).
+      - Dacă nu este instalat, urmează ghidul oficial de instalare pentru HACS: [HACS Installation Guide](https://hacs.xyz/docs/use).
    
   - **2. Găsește repository-ul extern**
       - Accesează pagina GitHub a integrării pe care vrei să o adaugi. De exemplu, repository-ul ar putea arăta astfel:  
