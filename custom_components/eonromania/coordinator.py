@@ -33,6 +33,7 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
 
         dateuser_data = await self.api_client.async_fetch_dateuser_data(self.cod_incasare)
         citireindex_data = await self.api_client.async_fetch_citireindex_data(self.cod_incasare)
+        conventieconsum_data = await self.api_client.async_fetch_conventieconsum_data(self.cod_incasare)
         arhiva_data = await self.api_client.async_fetch_arhiva_data(self.cod_incasare)
         facturasold_data = await self.api_client.async_fetch_facturasold_data(self.cod_incasare)
 
@@ -42,6 +43,7 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         return {
             "dateuser": dateuser_data,
             "citireindex": citireindex_data,
+            "conventieconsum": conventieconsum_data,
             "arhiva": arhiva_data,
             "facturasold": facturasold_data,
             "payments": payments_data,
