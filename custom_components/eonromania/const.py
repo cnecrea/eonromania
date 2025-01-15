@@ -23,6 +23,7 @@ URLS = {
     "dateuser": "https://api2.eon.ro/partners/v2/account-contracts/{cod_incasare}",
     "citireindex": "https://api2.eon.ro/meterreadings/v1/meter-reading/{cod_incasare}/index",
     "conventieconsum": "https://api2.eon.ro/meterreadings/v1/consumption-convention/{cod_incasare}",
+    "comparareanualagrafic": "https://api2.eon.ro/invoices/v1/invoices/graphic-consumption/{cod_incasare}",
     "arhiva": "https://api2.eon.ro/meterreadings/v1/meter-reading/{cod_incasare}/history",
     "facturasold": "https://api2.eon.ro/invoices/v1/invoices/list?accountContract={cod_incasare}&status=unpaid",
     "trimite_index": "https://api2.eon.ro/meterreadings/v1/meter-reading/index" 
