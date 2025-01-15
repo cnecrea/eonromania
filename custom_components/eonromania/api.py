@@ -59,6 +59,14 @@ class EonApiClient:
             on_error="Eroare la obținerea indexului curent."
         )
 
+    async def async_fetch_conventieconsum_data(self, cod_incasare: str):
+        """Obține datele despre indexul curent."""
+        return await self._request_with_token(
+            method="GET",
+            url=URLS["conventieconsum"].format(cod_incasare=cod_incasare),
+            on_error="Eroare la obținerea indexului curent."
+        )
+
     async def async_fetch_arhiva_data(self, cod_incasare: str):
         """Obține date istorice (arhiva)."""
         return await self._request_with_token(
