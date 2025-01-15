@@ -38,6 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
     # 3. Adăugăm senzorii de bază
     sensors.append(DateContractSensor(coordinator, config_entry))
+    sensors.append(ConventieConsumSensor(coordinator, config_entry))
     sensors.append(FacturaRestantaSensor(coordinator, config_entry))
 
     # 4. Gestionăm CitireIndexSensor și CitirePermisaSensor
@@ -809,6 +810,113 @@ class CitirePermisaSensor(CoordinatorEntity, SensorEntity):
         locality_name = address_obj.get("locality", {}).get("localityName", "Necunoscut")
 
         full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
+
+        return {
+            "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
+            "name": f"E-ON România - {full_address} ({self.config_entry.data['cod_incasare']})",
+            "manufacturer": "Ciprian Nicolae (cnecrea)",
+            "model": "E-ON România",
+            "entry_type": DeviceEntryType.SERVICE,
+        }
+
+
+# ------------------------------------------------------------------------
+# ConventieConsumSensor
+# ------------------------------------------------------------------------
+class ConventieConsumSensor(CoordinatorEntity, SensorEntity):
+    """Senzor pentru afișarea datelor contractului."""
+
+    def __init__(self, coordinator, config_entry):
+        super().__init__(coordinator)
+        self.config_entry = config_entry
+        self._attr_name = "Convenție consum"
+        self._attr_unique_id = f"{DOMAIN}_conventie_consum_{config_entry.entry_id}"
+        self._attr_entity_id = f"sensor.{DOMAIN}_conventie_consum_{config_entry.data['cod_incasare']}"
+
+    @property
+    def state(self):
+        """Returnează starea senzorului."""
+        data = self.coordinator.data.get("conventieconsum")
+        if not data or not isinstance(data, list) or len(data) == 0:
+            return None
+
+        # Obținem valorile pentru lunile din "conventionLine"
+        convention_line = data[0].get("conventionLine", {})
+
+        # Calculăm câte luni au valoarea > 0
+        months_with_values = sum(
+            1 for key in convention_line if key.startswith("valueMonth") and convention_line.get(key, 0) > 0
+        )
+
+        return months_with_values
+
+    @property
+    def extra_state_attributes(self):
+        """Atribute adiționale."""
+        data = self.coordinator.data.get("conventieconsum")
+        if not data or not isinstance(data, list) or len(data) == 0:
+            return {}
+
+        convention_line = data[0].get("conventionLine", {})
+
+        # Dicționar pentru mapping lunile
+        month_mapping = {
+            "valueMonth1": "ianuarie",
+            "valueMonth2": "februarie",
+            "valueMonth3": "martie",
+            "valueMonth4": "aprilie",
+            "valueMonth5": "mai",
+            "valueMonth6": "iunie",
+            "valueMonth7": "iulie",
+            "valueMonth8": "august",
+            "valueMonth9": "septembrie",
+            "valueMonth10": "octombrie",
+            "valueMonth11": "noiembrie",
+            "valueMonth12": "decembrie",
+        }
+
+        # Construim doar atributele personalizate care încep cu "Convenție consum pentru luna"
+        attributes = {
+            f"Convenție pentru luna {month}": f"{convention_line.get(key, 0)} mc"
+            for key, month in month_mapping.items()
+        }
+
+        # Adăugăm alte atribute suplimentare, dacă este cazul
+        attributes["attribution"] = ATTRIBUTION
+
+        return attributes
+
+    @property
+    def unique_id(self):
+        return self._attr_unique_id
+
+    @property
+    def entity_id(self):
+        return self._attr_entity_id
+
+    @entity_id.setter
+    def entity_id(self, value):
+        self._attr_entity_id = value
+
+    @property
+    def icon(self):
+        return "mdi:chart-bar"
+
+    @property
+    def device_info(self):
+        # Construiește adresa completă (full_address)
+        data = self.coordinator.data.get("dateuser", {})
+        address_obj = data.get("consumptionPointAddress", {})
+        street_obj = address_obj.get("street", {})
+        street_type = street_obj.get("streetType", {}).get("label", "Strada")
+        street_name = street_obj.get("streetName", "Necunoscută")
+        street_no = address_obj.get("streetNumber", "N/A")
+        apartment = address_obj.get("apartment", "N/A")
+        locality_name = address_obj.get("locality", {}).get("localityName", "Necunoscut")
+
+        full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
+
+        # Returnează device_info cu full_address inclus
 
         return {
             "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
