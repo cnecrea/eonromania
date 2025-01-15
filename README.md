@@ -179,6 +179,22 @@ entities:
 
 ---
 
+# Întrebări frecvente
+
+Ai întrebări despre utilizarea sau configurarea integrării? Găsește răspunsuri la întrebări precum:
+
+- **Cum să adaug integrarea în Home Assistant?**
+- **Am cont DUO, pot folosi integrarea?**
+- **Ce înseamnă index curent?**
+- **Nu îmi apare indexul curent. De ce?**
+- **Nu îmi apare senzorul citire permisă. De ce?**
+- **Vreau să trimit indexul de la gaz de forma automată. De ce am nevoie?**
+- **Am instalat un cititor de contor gaz. Cum fac automatizarea?**
+
+Consultă fișierul [FAQ.md](./FAQ.md) pentru ghiduri detaliate și soluții pas cu pas! 😊
+
+---
+
 ## ☕ Susține dezvoltatorul
 
 Dacă ți-a plăcut această integrare și vrei să sprijini munca depusă, **invită-mă la o cafea**! 🫶  
