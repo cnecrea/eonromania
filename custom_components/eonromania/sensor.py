@@ -41,11 +41,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     sensors.append(ConventieConsumSensor(coordinator, config_entry))
     sensors.append(FacturaRestantaSensor(coordinator, config_entry))
 
+
     # 4. Gestionăm CitireIndexSensor și CitirePermisaSensor
     citireindex_data = coordinator.data.get("citireindex")
     if citireindex_data:
         devices = citireindex_data.get("indexDetails", {}).get("devices", [])
-        _LOGGER.debug("Dispozitive detectate în citireindex_data: %s", devices)
+        #_LOGGER.debug("Dispozitive detectate în citireindex_data: %s", devices)
         seen_devices = set()
         for device in devices:
             device_number = device.get("deviceNumber", "unknown_device")
@@ -87,9 +88,46 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
         for year, payment_items in payments_by_year.items():
             sensors.append(ArhivaPlatiSensor(coordinator, config_entry, year))
 
+        # 6.4. Gestionăm ArhivaComparareConsumAnualGraficSensor
+        comparareanualagrafic_data = coordinator.data.get("comparareanualagrafic", {})
+        if "consumption" in comparareanualagrafic_data:
+            # Grupăm valorile lunare pe ani
+            from collections import defaultdict
+            yearly_data = defaultdict(dict)
+            
+            for item in comparareanualagrafic_data["consumption"]:
+                year = item.get("year")
+                month = item.get("month")
+                consumptionValue = item.get("consumptionValue")
+                consumptionValueDayValue = item.get("consumptionValueDayValue")
+
+                # Validăm existența cheilor și a valorii
+                if not year or not month or consumptionValue is None or consumptionValueDayValue is None:
+                    _LOGGER.warning("Intrare invalidă în comparareanualagrafic: %s", item)
+                    continue
+
+                # Adăugăm valoarea lunară în structura de grupare
+                yearly_data[year][month] = {
+                    "consumptionValue": consumptionValue,
+                    "consumptionValueDayValue": consumptionValueDayValue,
+                }
+
+            # Eliminăm anii care au toate lunile cu consum 0
+            cleaned_yearly_data = {
+                year: monthly_values
+                for year, monthly_values in yearly_data.items()
+                if any(
+                    value["consumptionValue"] > 0 or value["consumptionValueDayValue"] > 0
+                    for value in monthly_values.values()
+                )
+            }
+
+            # Creăm câte un senzor pentru fiecare an găsit
+            for year, monthly_values in cleaned_yearly_data.items():
+                sensors.append(ArhivaComparareConsumAnualGraficSensor(coordinator, config_entry, year, monthly_values))
+
     # 7. Înregistrăm senzorii în Home Assistant
     async_add_entities(sensors)
-
 
 
 # ------------------------------------------------------------------------
@@ -548,6 +586,8 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
         }
 
         attributes = {}
+        readings = []
+
         for meter in year_data.get("meters", []):
             for index in meter.get("indexes", []):
                 for reading in index.get("readings", []):
@@ -557,11 +597,14 @@ class ArhivaSensor(CoordinatorEntity, SensorEntity):
                     reading_type_code = reading.get("readingType", "99")
                     reading_type_str = reading_type_map.get(reading_type_code, "Necunoscut")
 
-                    # În loc să stocăm separat indexul și metoda de citire,
-                    # concatenăm datele într-o singură cheie:
-                    attributes[f"Index ({reading_type_str}) {month_name}"] = value
+                    readings.append((month_num, reading_type_str, month_name, value))
 
+        # Sortăm citirile în funcție de lună
+        readings.sort(key=lambda r: r[0])
 
+        # Adăugăm citirile sortate în atribute
+        for _, reading_type_str, month_name, value in readings:
+            attributes[f"Index ({reading_type_str}) {month_name}"] = value
 
         attributes["attribution"] = ATTRIBUTION
         return attributes
@@ -636,7 +679,10 @@ class ArhivaPlatiSensor(CoordinatorEntity, SensorEntity):
         }
 
         attributes = {}
-        payments_list = self._payments_for_year()
+        payments_list = sorted(
+            self._payments_for_year(),
+            key=lambda p: int(p["paymentDate"][5:7])  # luna este în intervalul 5-7 din formatul ISO
+        )
 
         # Calculăm totalul plăților
         total_value = sum(p.get("value", 0) for p in payments_list)
@@ -798,6 +844,18 @@ class CitirePermisaSensor(CoordinatorEntity, SensorEntity):
             return "mdi:cog-stop-outline"
 
     @property
+    def unique_id(self):
+        return self._attr_unique_id
+
+    @property
+    def entity_id(self):
+        return self._attr_entity_id
+
+    @entity_id.setter
+    def entity_id(self, value):
+        self._attr_entity_id = value
+
+    @property
     def device_info(self):
         """Returnează informațiile dispozitivului."""
         data = self.coordinator.data.get("dateuser", {})
@@ -824,7 +882,7 @@ class CitirePermisaSensor(CoordinatorEntity, SensorEntity):
 # ConventieConsumSensor
 # ------------------------------------------------------------------------
 class ConventieConsumSensor(CoordinatorEntity, SensorEntity):
-    """Senzor pentru afișarea datelor contractului."""
+    """Senzor pentru afișarea datelor de conventie."""
 
     def __init__(self, coordinator, config_entry):
         super().__init__(coordinator)
@@ -877,7 +935,7 @@ class ConventieConsumSensor(CoordinatorEntity, SensorEntity):
 
         # Construim doar atributele personalizate care încep cu "Convenție consum pentru luna"
         attributes = {
-            f"Convenție pentru luna {month}": f"{convention_line.get(key, 0)} mc"
+            f"Convenție din luna {month}": f"{convention_line.get(key, 0)} mc"
             for key, month in month_mapping.items()
         }
 
@@ -917,6 +975,117 @@ class ConventieConsumSensor(CoordinatorEntity, SensorEntity):
         full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
 
         # Returnează device_info cu full_address inclus
+
+        return {
+            "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
+            "name": f"E-ON România - {full_address} ({self.config_entry.data['cod_incasare']})",
+            "manufacturer": "Ciprian Nicolae (cnecrea)",
+            "model": "E-ON România",
+            "entry_type": DeviceEntryType.SERVICE,
+        }
+
+
+
+# ------------------------------------------------------------------------
+# ArhivaComparareConsumAnualGraficSensor
+# ------------------------------------------------------------------------
+
+class ArhivaComparareConsumAnualGraficSensor(CoordinatorEntity, SensorEntity):
+    """Senzor pentru afișarea datelor istorice ale consumului."""
+
+    def __init__(self, coordinator, config_entry, year, monthly_values):
+        super().__init__(coordinator)
+        self.config_entry = config_entry
+        self._year = year
+        self._monthly_values = monthly_values
+
+        # Setăm numele, ID-ul unic și ID-ul entității
+        self._attr_name = f"Arhivă consum - {year}"
+        self._attr_unique_id = f"{DOMAIN}_arhiva_consum_{config_entry.entry_id}_{year}"
+        self._attr_entity_id = f"sensor.{DOMAIN}_arhiva_consum_{config_entry.data['cod_incasare']}_{year}"
+        self._attr_extra_state_attributes = {}
+
+    @property
+    def state(self):
+        """Returnează consumul total anual cu unitatea din JSON."""
+        # Obținem unitatea de măsură din datele coordonatorului
+        unit = self.coordinator.data.get("um", "m3")
+        # Returnăm consumul total anual bazat pe 'consumptionValue'
+        return f"{sum(value['consumptionValue'] for value in self._monthly_values.values())} {unit}"
+
+    @property
+    def unit_of_measurement(self):
+        """Nu setăm o unitate de măsură, astfel încât să nu se genereze grafic."""
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        """Returnează valorile lunare și atribuția."""
+        month_names = [
+            "ianuarie", "februarie", "martie", "aprilie", "mai", "iunie",
+            "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"
+        ]
+
+        # Obține unitatea de măsură din JSON
+        unit = self.coordinator.data.get("um", "m3")
+
+        # Începem cu atributul de atribuire
+        attributes = {"attribution": ATTRIBUTION}
+
+        # Adăugăm consumul lunar
+        attributes.update({
+            f"Consum lunar {month_names[int(month) - 1]}": f"{value['consumptionValue']} {unit}"
+            for month, value in sorted(self._monthly_values.items(), key=lambda item: int(item[0]))
+        })
+
+        # Adăugăm o separare vizuală
+        attributes["----"] = ""
+
+        # Adăugăm consumul mediu zilnic
+        attributes.update({
+            f"Consum mediu zilnic în {month_names[int(month) - 1]}": f"{value['consumptionValueDayValue']} {unit}"
+            for month, value in sorted(self._monthly_values.items(), key=lambda item: int(item[0]))
+        })
+
+        return attributes
+
+    @property
+    def unique_id(self):
+        """Returnează ID-ul unic al senzorului."""
+        return self._attr_unique_id
+
+    @property
+    def entity_id(self):
+        """Returnează ID-ul entității în Home Assistant."""
+        return self._attr_entity_id
+
+    @entity_id.setter
+    def entity_id(self, value):
+        """Permite setarea unui nou ID pentru entitate."""
+        self._attr_entity_id = value
+
+    @property
+    def icon(self):
+        """Returnează iconița asociată senzorului."""
+        return "mdi:chart-bar"
+
+    @property
+    def device_info(self):
+        """Returnează informațiile despre dispozitiv."""
+        # Gestionăm datele utilizatorului pentru a construi adresa
+        data = self.coordinator.data.get("dateuser", {})
+        address_obj = data.get("consumptionPointAddress", {})
+        street_obj = address_obj.get("street", {})
+        locality_obj = address_obj.get("locality", {})
+
+        # Construim adresa completă
+        street_type = street_obj.get("streetType", {}).get("label", "Strada")
+        street_name = street_obj.get("streetName", "Necunoscută")
+        street_no = address_obj.get("streetNumber", "N/A")
+        apartment = address_obj.get("apartment", "N/A")
+        locality_name = locality_obj.get("localityName", "Necunoscut")
+
+        full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
 
         return {
             "identifiers": {(DOMAIN, self.config_entry.data['cod_incasare'])},
