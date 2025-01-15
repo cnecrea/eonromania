@@ -6,6 +6,55 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
 
 ## 🌟 Caracteristici
 
+### Senzor `Arhivă consum`:
+- **📚 Date istorice**:
+  - Afișează consumul total lunar în metri cubi.
+- **📊 Atribute disponibile**:
+  - **An**: Anul pentru care se afișează datele.
+  - **Consum lunar**: Cantitatea de gaz consumată pentru fiecare lună, exprimată în metri cubi.
+
+### Senzor `Arhivă index`:
+- **📚 Date istorice**:
+  - Afișează indexurile lunare pentru fiecare an disponibil.
+- **📊 Atribute disponibile**:
+  - **An**: Anul pentru care se afișează datele.
+  - **Indexuri lunare**: Indexurile consumului pentru fiecare lună.
+
+### Senzor `Arhivă plăți`:
+- **📚 Date istorice**:
+  - Afișează plățile lunare pentru fiecare an disponibil.
+- **📊 Atribute disponibile**:
+  - **An**: Anul pentru care se afișează datele.
+  - **Plăți lunare**: Totalul plăților efectuate pentru fiecare lună în anul selectat.
+
+### Senzor `Citire permisă`:
+- **🔍 Verificare perioadă trimitere**:
+    - Afișează dacă perioada de trimitere a indexului este activă.
+- **📊 Atribute disponibile**:
+    - **ID intern citire contor (SAP)**: Identificator unic pentru punctul de măsurare.
+    - **Perioada permisă pentru trimitere**: Intervalul de timp în care indexul poate fi transmis.
+    - **Cod încasare**: Codul unic al contractului.
+- **🔄 Starea senzorului**:
+    - **Da**: Trimiterea indexului este permisă.
+    - **Nu**: Trimiterea indexului nu este permisă.
+    - **Indisponibil**: Datele nu sunt disponibile.
+
+### Senzor `Convenție consum`:
+- **📊 Gestionarea consumului lunar**: Afișează detalii despre convenția de consum pe luni, incluzând doar lunile cu valori mai mari de 0.
+- **📄 Atribute disponibile**:
+  - **Valori lunare ale consumului**: Exemplu: `Convenție pentru luna ianuarie: 10 mc`.
+  - **Număr de luni configurate**: Totalul lunilor cu valori > 0.
+- **🔄 Starea senzorului**: Reprezintă numărul de luni configurate. Exemplu: `3` (pentru 3 luni configurate).
+- **🎯 Exemplu de afișare**:
+
+```text
+Stare principală: 3
+Atribute:
+  Convenție pentru luna ianuarie: 10 mc
+  Convenție pentru luna februarie: 5 mc
+  Convenție pentru luna martie: 15 mc
+```
+
 ### Senzor `Date contract`:
   - **🔍 Monitorizare generală**:
       - Afișează informații detaliate despre contractul de furnizare energie.
@@ -26,6 +75,13 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
       - **Data inițierii reviziei**: Data la care începe următoarea revizie tehnică.
       - **Revizie tehnică**: Data expirării următoarei revizii tehnice.
 
+### Senzor `Factură restantă`:
+- **📄 Detalii sold**:
+  - Afișează dacă există facturi restante.
+- **📊 Atribute disponibile**:
+  - **Restanțe pe luna [numele lunii]**: Soldul restant pentru luna respectivă.
+  - **Total sold**: Suma totală a soldului restant, afișată în lei.
+
 ### Senzor `Index curent`:
   - **🔍 Monitorizare date index**:
       - Afișează informații detaliate despre indexul curent al contorului.
@@ -43,35 +99,6 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
       - **Trimis la**: Data și ora la care a fost transmisă ultima citire.
       - **Poate fi modificat până la**: Data și ora până la care citirea poate fi modificată.
 
-### Senzor `Arhivă`:
-- **📚 Date istorice**:
-  - Afișează indexurile lunare pentru fiecare an disponibil.
-- **📊 Atribute disponibile**:
-  - **An**: Anul pentru care se afișează datele.
-  - **Indexuri lunare**: Indexurile consumului pentru fiecare lună.
-
-
-### Senzor `Factură restantă`:
-- **📄 Detalii sold**:
-  - Afișează dacă există facturi restante.
-- **📊 Atribute disponibile**:
-  - **Restanțe pe luna [numele lunii]**: Soldul restant pentru luna respectivă.
-  - **Total sold**: Suma totală a soldului restant, afișată în lei.
-
-
-
-### Senzor `Citire permisă`:
-- **🔍 Verificare perioadă trimitere**:
-    - Afișează dacă perioada de trimitere a indexului este activă.
-- **📊 Atribute disponibile**:
-    - **ID intern citire contor (SAP)**: Identificator unic pentru punctul de măsurare.
-    - **Perioada permisă pentru trimitere**: Intervalul de timp în care indexul poate fi transmis.
-    - **Cod încasare**: Codul unic al contractului.
-- **🔄 Starea senzorului**:
-    - **Da**: Trimiterea indexului este permisă.
-    - **Nu**: Trimiterea indexului nu este permisă.
-    - **Indisponibil**: Datele nu sunt disponibile.
-
 
 ### Buton `Trimite index`:
 - **🔘 Buton interactiv**:
@@ -80,22 +107,6 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
     - Determină valoarea indexului din entitatea `input_number.gas_meter_reading`.
     - Validează și trimite indexul folosind endpoint-ul API.
 
-
-### Senzor `Convenție consum`:
-- **📊 Gestionarea consumului lunar**: Afișează detalii despre convenția de consum pe luni, incluzând doar lunile cu valori mai mari de 0.
-- **📄 Atribute disponibile**:
-  - **Valori lunare ale consumului**: Exemplu: `Convenție pentru luna ianuarie: 10 mc`.
-  - **Număr de luni configurate**: Totalul lunilor cu valori > 0.
-- **🔄 Starea senzorului**: Reprezintă numărul de luni configurate. Exemplu: `3` (pentru 3 luni configurate).
-- **🎯 Exemplu de afișare**:
-
-```text
-Stare principală: 3
-Atribute:
-  Convenție pentru luna ianuarie: 10 mc
-  Convenție pentru luna februarie: 5 mc
-  Convenție pentru luna martie: 15 mc
-```
 
 ---
 
