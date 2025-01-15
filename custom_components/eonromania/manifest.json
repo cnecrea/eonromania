@@ -5,7 +5,7 @@
     "config_flow": true,
     "domain": "eonromania",
     "name": "E-ON România",
-    "version": "1.0.1",
+    "version": "1.2.0",
     "documentation": "https://github.com/cnecrea/eonromania",
     "issue_tracker": "https://github.com/cnecrea/eonromania/issues",
     "codeowners": ["@cnecrea"],
