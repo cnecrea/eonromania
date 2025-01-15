@@ -81,6 +81,21 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
     - Validează și trimite indexul folosind endpoint-ul API.
 
 
+### Senzor `Convenție consum`:
+- **📊 Gestionarea consumului lunar**: Afișează detalii despre convenția de consum pe luni, incluzând doar lunile cu valori mai mari de 0.
+- **📄 Atribute disponibile**:
+  - **Valori lunare ale consumului**: Exemplu: `Convenție pentru luna ianuarie: 10 mc`.
+  - **Număr de luni configurate**: Totalul lunilor cu valori > 0.
+- **🔄 Starea senzorului**: Reprezintă numărul de luni configurate. Exemplu: `3` (pentru 3 luni configurate).
+- **🎯 Exemplu de afișare**:
+
+```text
+Stare principală: 3
+Atribute:
+  Convenție pentru luna ianuarie: 10 mc
+  Convenție pentru luna februarie: 5 mc
+  Convenție pentru luna martie: 15 mc
+```
 
 ---
 
