@@ -1,3 +1,5 @@
+<!-- Adaugă o ancoră la începutul paginii -->
+<a name="top"></a>
 # Întrebări frecvente
 
 - [Cum să adaug integrarea în Home Assistant?](#cum-să-adaug-integrarea-în-home-assistant)
