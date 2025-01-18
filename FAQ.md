@@ -56,6 +56,9 @@ HACS (Home Assistant Community Store) permite instalarea și gestionarea integr�
 
 ## Am cont DUO, pot folosi integrarea?
 
+Pentru a reveni la începutul paginii, [apăsați aici](#top).
+
+
 **Răspuns:**  
 Da, integrarea poate fi utilizată cu un cont DUO, însă trebuie să reții că **codul de încasare** este diferit față de cel afișat pe factură. Pentru a obține codurile de încasare corecte pentru fiecare serviciu (de exemplu, ENERGIE ELECTRICĂ, GAZ), urmează pașii de mai jos:
 
@@ -73,12 +76,18 @@ Da, integrarea poate fi utilizată cu un cont DUO, însă trebuie să reții că
 
 ## Ce înseamnă index curent?
 
+Pentru a reveni la începutul paginii, [apăsați aici](#top).
+
+
 **Răspuns:**  
 Indexul curent se referă la indexul actual înregistrat pentru consumul tău, fie că este vorba de gaze naturale sau de energie electrică. Este un termen generic utilizat pentru a desemna ultima valoare citită sau transmisă a consumului.
 
 ---
 
 ## Nu îmi apare indexul curent. De ce?
+
+Pentru a reveni la începutul paginii, [apăsați aici](#top).
+
 
 **Răspuns:**  
 Indexul curent apare doar atunci când se apropie perioada de citire programată. Dacă perioada de citire nu este încă activă, datele asociate indexului curent nu sunt propagate de EON, iar acestea nu vor apărea în formatul JSON.
@@ -175,6 +184,9 @@ Indexul curent apare doar atunci când se apropie perioada de citire programată
 
 ## Nu îmi apare senzorul citire permisă. De ce?
 
+Pentru a reveni la începutul paginii, [apăsați aici](#top).
+
+
 **Răspuns:**  
 Acest lucru se întâmplă din același motiv pentru care „[Index curent](#nu-îmi-apare-indexul-curent-de-ce)” nu apare. Te rugăm să consulți explicațiile de mai sus pentru mai multe detalii despre această situație.
 
@@ -182,6 +194,9 @@ Acest lucru se întâmplă din același motiv pentru care „[Index curent](#nu-
 ---
 
 ## Vreau să trimit indexul de la gaz de forma automată. De ce am nevoie?
+
+Pentru a reveni la începutul paginii, [apăsați aici](#top).
+
 
 **Răspuns:**  
 Pentru a trimite indexul de la gaz automat, este important să înțelegem situația și cerințele. Sunt necesare două lucruri principale:
@@ -217,6 +232,10 @@ Astfel, hardware-ul contorului de gaz este responsabil pentru detectarea consumu
 
 ---
 # Am instalat un cititor de contor gaz. Cum fac automatizarea?
+
+Pentru a reveni la începutul paginii, [apăsați aici](#top).
+
+
 **Răspuns:**  
 Dacă ai un cititor de gaz care incrementează consumul în entitatea **input_number.gas_meter_reading**, poți folosi următorul exemplu de automatizare.
 
@@ -290,6 +309,9 @@ actions:
 ---
 
 # Îmi place acest proiect. Cum pot să-l susțin?
+
+Pentru a reveni la începutul paginii, [apăsați aici](#top).
+
 **Răspuns:**  
   - **Oferă un star pe GitHub** – Apasă butonul **“Star”** de pe pagina repository-ului pentru a arăta aprecierea ta.
   - **Contribuie cu cod** – Dacă ai idei sau îmbunătățiri, poți crea un pull request cu modificările propuse.
