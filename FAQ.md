@@ -14,6 +14,9 @@
 
 ## Cum să adaug integrarea în Home Assistant?
 
+Pentru a reveni la începutul paginii, [apăsați aici](#top).
+
+
 **Răspuns:**  
 HACS (Home Assistant Community Store) permite instalarea și gestionarea integrărilor, temelor și modulelor personalizate create de comunitate. Urmează pașii de mai jos pentru a adăuga un repository extern în HACS și pentru a instala o integrare:
 
