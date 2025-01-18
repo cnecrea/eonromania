@@ -1,9 +1,6 @@
 
 blank_issues_enabled: false
 contact_links:
-  - name: Întrebările frecvente
-    url: https://github.com/cnecrea/eonromania/blob/main/FAQ.md
-    about: Ai întrebări despre integrare sau configurare? Consultă documentația pentru soluții detaliate.
   - name: Suport
     url: https://github.com/cnecrea/eonromania/discussions
     about: Dacă problema ta nu se potrivește cu un template, poți cere ajutor în secțiunea de discuții.
