@@ -1,0 +1,41 @@
+{
+    "title": "E-ON Romania",
+    "config": {
+        "step": {
+            "user": {
+                "title": "Configuration for E-ON Romania",
+                "description": "Enter your account details for authentication.",
+                "data": {
+                    "username": "Username",
+                    "password": "Password",
+                    "cod_incasare": "Payment code",
+                    "update_interval": "Update interval (seconds)"
+                }
+            }
+        },
+        "error": {
+            "auth_failed": "Authentication failed. Please check your credentials.",
+            "connection_error": "Connection error. Please try again later.",
+            "invalid_cod_incasare": "The payment code must be exactly 12 digits."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Modify Options for E-ON Romania",
+                "description": "Update your account details and update interval.",
+                "data": {
+                    "username": "Username",
+                    "password": "Password",
+                    "cod_incasare": "Payment code",
+                    "update_interval": "Update interval (seconds)"
+                }
+            }
+        }
+    },
+    "system_messages": {
+        "entry_created": "Configuration saved successfully.",
+        "options_updated": "Options updated successfully.",
+        "auth_in_progress": "Authentication in progress..."
+    }
+}
