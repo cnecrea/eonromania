@@ -1,0 +1,41 @@
+{
+    "title": "E-ON Rumanía",
+    "config": {
+        "step": {
+            "user": {
+                "title": "Configuración para E-ON Rumanía",
+                "description": "Ingrese los detalles de su cuenta para la autenticación.",
+                "data": {
+                    "username": "Usuario",
+                    "password": "Contraseña",
+                    "cod_incasare": "Código de pago",
+                    "update_interval": "Intervalo de actualización (segundos)"
+                }
+            }
+        },
+        "error": {
+            "auth_failed": "La autenticación falló. Verifique sus credenciales.",
+            "connection_error": "Error de conexión. Por favor, inténtelo de nuevo más tarde.",
+            "invalid_cod_incasare": "El código de pago debe tener exactamente 12 dígitos."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Modificar opciones para E-ON Rumanía",
+                "description": "Actualice los detalles de su cuenta y el intervalo de actualización.",
+                "data": {
+                    "username": "Usuario",
+                    "password": "Contraseña",
+                    "cod_incasare": "Código de pago",
+                    "update_interval": "Intervalo de actualización (segundos)"
+                }
+            }
+        }
+    },
+    "system_messages": {
+        "entry_created": "Configuración guardada con éxito.",
+        "options_updated": "Opciones actualizadas con éxito.",
+        "auth_in_progress": "Autenticación en curso..."
+    }
+}
