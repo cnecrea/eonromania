@@ -1,0 +1,41 @@
+{
+    "title": "E-ON Roumanie",
+    "config": {
+        "step": {
+            "user": {
+                "title": "Configuration pour E-ON Roumanie",
+                "description": "Entrez les informations de votre compte pour l'authentification.",
+                "data": {
+                    "username": "Nom d'utilisateur",
+                    "password": "Mot de passe",
+                    "cod_incasare": "Code de paiement",
+                    "update_interval": "Intervalle de mise à jour (secondes)"
+                }
+            }
+        },
+        "error": {
+            "auth_failed": "Échec de l'authentification. Veuillez vérifier vos informations.",
+            "connection_error": "Erreur de connexion. Veuillez réessayer plus tard.",
+            "invalid_cod_incasare": "Le code de paiement doit comporter exactement 12 chiffres."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Modifier les options pour E-ON Roumanie",
+                "description": "Mettez à jour les informations de votre compte et l'intervalle de mise à jour.",
+                "data": {
+                    "username": "Nom d'utilisateur",
+                    "password": "Mot de passe",
+                    "cod_incasare": "Code de paiement",
+                    "update_interval": "Intervalle de mise à jour (secondes)"
+                }
+            }
+        }
+    },
+    "system_messages": {
+        "entry_created": "Configuration enregistrée avec succès.",
+        "options_updated": "Options mises à jour avec succès.",
+        "auth_in_progress": "Authentification en cours..."
+    }
+}
