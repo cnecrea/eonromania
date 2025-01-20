@@ -32,10 +32,5 @@
                 }
             }
         }
-    },
-    "system_messages": {
-        "entry_created": "Configuration saved successfully.",
-        "options_updated": "Options updated successfully.",
-        "auth_in_progress": "Authentication in progress..."
     }
 }
