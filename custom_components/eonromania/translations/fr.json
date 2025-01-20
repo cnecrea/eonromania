@@ -32,10 +32,5 @@
                 }
             }
         }
-    },
-    "system_messages": {
-        "entry_created": "Configuration enregistrée avec succès.",
-        "options_updated": "Options mises à jour avec succès.",
-        "auth_in_progress": "Authentification en cours..."
     }
 }
