@@ -32,10 +32,5 @@
                 }
             }
         }
-    },
-    "system_messages": {
-        "entry_created": "Configuración guardada con éxito.",
-        "options_updated": "Opciones actualizadas con éxito.",
-        "auth_in_progress": "Autenticación en curso..."
     }
 }
