@@ -32,6 +32,12 @@ body:
       value: >
         &nbsp;
 
+  - type: markdown
+    attributes:
+      value: >
+        ### Secțiune nouă
+        ---
+
   - type: textarea
     id: loguri
     attributes:
