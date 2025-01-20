@@ -1,3 +1,4 @@
+
 name: Raportare problemă
 description: Raportați o problemă legată de integrarea EON România.
 title: "Descriere scurtă a problemei"
@@ -36,6 +37,9 @@ body:
         # Exemplu:
         2025-01-14 03:08:37.818 ERROR (MainThread) [custom_components.eonromania.sensor] Eroare la parsarea sumei: 1.580,10
         ```
+        Dacă nu știți cum să activați modul debug și să colectați logurile relevante,
+        vă rugăm să consultați [ghidul pentru debugging](https://github.com/cnecrea/eonromania/blob/main/DEBUG.md).
+
       value: |
         ```yaml
         # ↑↓ Introduceți logurile aici, nu ștergeți liniile indicate cu săgeți
