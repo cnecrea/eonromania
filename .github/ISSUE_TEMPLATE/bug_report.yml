@@ -40,7 +40,6 @@ body:
 
         Dacă nu știți cum să activați modul debug și să colectați logurile relevante,
         vă rugăm să consultați [ghidul pentru debugging](https://github.com/cnecrea/eonromania/blob/main/DEBUG.md).
-
         După ce ați activat modul debug, reporniți Home Assistant și reproduceți problema,
         apoi copiați logurile generate din fișierul `home-assistant.log`.
 
