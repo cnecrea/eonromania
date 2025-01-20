@@ -35,7 +35,6 @@ body:
   - type: markdown
     attributes:
       value: >
-        ### Secțiune nouă
         ---
 
   - type: textarea
