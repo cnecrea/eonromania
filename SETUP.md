@@ -1,40 +1,4 @@
 
-# SETUP.md
-
-## 🔧 Configurarea Integrării EON România
-
-Această documentație explică pașii necesari pentru configurarea integrării și utilizarea datelor generate în Lovelace.
-
----
-
-## 🚀 Instalare Integrare
-
-### 💡 Instalare prin HACS:
-1. Adaugă [depozitul personalizat](https://github.com/cnecrea/eonromania) în HACS. 🛠️
-2. Caută integrarea **E-ON România** și instaleaz-o. ✅
-3. Repornește Home Assistant și configurează integrarea. 🔄
-
-### ✋ Instalare manuală:
-1. Clonează sau descarcă [depozitul GitHub](https://github.com/cnecrea/eonromania). 📂
-2. Copiază folderul `custom_components/eonromania` în directorul `custom_components` al Home Assistant. 🗂️
-3. Repornește Home Assistant și configurează integrarea. 🔧
-
----
-
-### 🛠️ Adăugare Integrare
-1. Accesează **Setări** > **Dispozitive și Servicii**.
-2. Apasă pe **Adaugă Integrare** și caută `EON România`.
-3. Introdu detaliile contului tău:
-   - **Nume de utilizator** și **Parolă** (de pe portalul EON).
-   - ~~**Cod încasare**: dacă codul este format din 10 cifre, de exemplu `2100023241`, trebuie să adaugi două zerouri la început. Rezultatul final ar trebui să fie `002100023241`.~~
-   - **Cod încasare**: Se găsește pe factura ta
-     - Nu mai este nevoie să introduci manual 00 înaintea codului de încasare! Dacă codul tău este format din 10 cifre (de exemplu `2100023241`), funcția de corectare implementată va adăuga automat două zerouri la început. Rezultatul final va deveni `002100023241`, astfel încât autentificarea să fie corectă și fără erori.
-   - **Interval de actualizare** (în secunde, implicit: 3600).
-
-4. După configurare, senzorii vor fi disponibili în **Entități**.
-
----
-
 ### 🖼️ Crearea Cardurilor Lovelace
 
 #### **Card pentru Index Curent**
