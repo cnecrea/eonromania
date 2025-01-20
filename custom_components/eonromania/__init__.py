@@ -4,12 +4,15 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
 from .api import EonApiClient
 from .coordinator import EonRomaniaCoordinator
 from . import sensor, button
 
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _LOGGER = logging.getLogger(__name__)
 
