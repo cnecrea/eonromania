@@ -27,11 +27,10 @@ body:
     validations:
       required: true
 
-  - type: markdown
-    attributes:
-      value: >
-        ---
-
+- type: markdown
+  attributes:
+    value: >
+      
 
   - type: textarea
     id: loguri
