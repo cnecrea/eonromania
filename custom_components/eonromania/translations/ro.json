@@ -32,10 +32,5 @@
                 }
             }
         }
-    },
-    "system_messages": {
-        "entry_created": "Configurația a fost salvată cu succes.",
-        "options_updated": "Opțiunile au fost actualizate cu succes.",
-        "auth_in_progress": "Autentificare în curs..."
     }
 }
