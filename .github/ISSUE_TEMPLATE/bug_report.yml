@@ -7,14 +7,28 @@ body:
   - type: markdown
     attributes:
       value: >
-        Vă rugăm să completați informațiile de mai jos pentru a ne ajuta să înțelegem problema și să o rezolvăm mai rapid.
+        ⚠️ **ATENȚIE:** ⚠️
+
+
+        Înainte de a raporta o problemă, te rog să verifici secțiunea [FAQ.md](https://github.com/cnecrea/eonromania/blob/main/FAQ.md) pentru a vedea dacă problema este deja explicată sau are o soluție.  
+
+        Acest lucru mă ajută să evit raportările duplicate și să rezolv problemele mai eficient.  
+        
+        Dacă problema persistă, completează informațiile de mai jos.
+        
+  - type: markdown
+    attributes:
+      value: >
+        Te rog să completezi informațiile de mai jos pentru a mă ajuta să înțeleg problema și să o rezolv mai rapid.
 
   - type: textarea
     id: descriere
     attributes:
       label: Descrieți problema
-      description: Explicați clar ce s-a întâmplat, inclusiv pașii pentru a reproduce problema.
-      placeholder: "Descrieți aici problema"
+      description: |
+        Explicați clar ce s-a întâmplat, inclusiv pașii pentru a reproduce problema. 
+        **Nu introduceți logurile aici.** Logurile trebuie raportate în secțiunea dedicată de mai jos.
+      placeholder: "Descrieți aici problema (fără loguri)"
     validations:
       required: true
 
