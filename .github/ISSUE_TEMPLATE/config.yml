@@ -7,6 +7,3 @@ contact_links:
   - name: Personalizarea cardurilor lovelace
     url: https://github.com/cnecrea/eonromania/blob/main/SETUP.md
     about: Explică procesul de personalizare și configurare a interfeței utilizatorului în Home Assistant prin crearea și configurarea cardurilor Lovelace pentru afișarea datelor relevante.
-  - name: Suport
-    url: https://github.com/cnecrea/eonromania/discussions
-    about: Dacă problema ta nu se potrivește cu un template, poți cere ajutor în secțiunea de discuții.
