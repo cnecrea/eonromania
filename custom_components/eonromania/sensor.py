@@ -46,8 +46,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
     citireindex_data = coordinator.data.get("citireindex")
     if citireindex_data:
         devices = citireindex_data.get("indexDetails", {}).get("devices", [])
-        #_LOGGER.debug("Dispozitive detectate în citireindex_data: %s", devices)
         seen_devices = set()
+
+        # Dacă există device-uri, creăm senzori pentru ele
         for device in devices:
             device_number = device.get("deviceNumber", "unknown_device")
             if device_number not in seen_devices:
@@ -56,6 +57,14 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
                 seen_devices.add(device_number)
             else:
                 _LOGGER.warning("Dispozitiv duplicat ignorat: %s", device_number)
+
+        # Dacă nu există dispozitive, adăugăm senzori individuali și logăm separat
+        if not devices:
+            _LOGGER.info("Nu există dispozitive în citireindex_data, adăugăm CitireIndexSensor fără device_number.")
+            sensors.append(CitireIndexSensor(coordinator, config_entry, device_number=None))
+
+            _LOGGER.info("Nu există dispozitive în citireindex_data, adăugăm CitirePermisaSensor fără device_number.")
+            sensors.append(CitirePermisaSensor(coordinator, config_entry, device_number=None))
 
     # 5. Gestionăm ArhivaSensor
     arhiva_data = coordinator.data.get("arhiva")
@@ -243,18 +252,19 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = "Index curent"
         self._attr_unique_id = f"{DOMAIN}_index_curent_{config_entry.entry_id}"
         self._attr_entity_id = f"sensor.{DOMAIN}_index_curent_{config_entry.data['cod_incasare']}"
+        self._state = None  # Stare inițială
 
     @property
     def state(self):
         """Returnează starea senzorului."""
         citireindex_data = self.coordinator.data.get("citireindex")
         if not citireindex_data:
-            return None
+            return 0  # Dacă nu există date, returnăm 0
 
         index_details = citireindex_data.get("indexDetails", {})
         devices = index_details.get("devices", [])
         if not devices:
-            return None
+            return 0  # Dacă nu există dispozitive, returnăm 0
 
         # Căutăm device-ul cu device_number-ul potrivit
         for dev in devices:
@@ -270,10 +280,12 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
                     old_value = indexes[0].get("oldValue")
                     if old_value is not None:
                         return int(old_value)
-        return None
+
+        return 0  # Dacă nu există valori, returnăm 0 ca stare implicită
 
     @property
     def extra_state_attributes(self):
+        """Returnează atributele suplimentare ale senzorului."""
         citireindex_data = self.coordinator.data.get("citireindex")
         if not citireindex_data:
             return {}
@@ -282,6 +294,12 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
         devices = index_details.get("devices", [])
         reading_period = citireindex_data.get("readingPeriod", {})
 
+        # Dacă nu există dispozitive, setăm atributul "În curs de actualizare"
+        if not devices:
+            return {
+                "În curs de actualizare": ""
+            }
+
         # Găsim device-ul potrivit
         for dev in devices:
             if dev.get("deviceNumber") == self.device_number:
@@ -289,8 +307,6 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
                 if indexes:
                     first_index = indexes[0]
                     attributes = {}
-
-
 
                     # Adăugăm atributele doar dacă nu sunt `null`
                     if dev.get("deviceNumber") is not None:
@@ -335,12 +351,12 @@ class CitireIndexSensor(CoordinatorEntity, SensorEntity):
                     if first_index.get("canBeChangedTill") is not None:
                         attributes["Poate fi modificat până la"] = first_index.get("canBeChangedTill")
 
-
                     # Adăugăm sursa
                     attributes["attribution"] = ATTRIBUTION
                     return attributes
 
         return {}
+
 
     @property
     def unique_id(self):
@@ -762,7 +778,6 @@ class ArhivaPlatiSensor(CoordinatorEntity, SensorEntity):
 # ------------------------------------------------------------------------
 # CitirePermisaSensor
 # ------------------------------------------------------------------------
-
 class CitirePermisaSensor(CoordinatorEntity, SensorEntity):
     """Senzor pentru verificarea permisiunii de citire a indexului."""
 
@@ -780,11 +795,15 @@ class CitirePermisaSensor(CoordinatorEntity, SensorEntity):
         """Determină starea senzorului în funcție de datele curente."""
         citireindex_data = self.coordinator.data.get("citireindex")
         if not citireindex_data:
-            return "Indisponibil"
+            return "Nu"
 
         reading_period = citireindex_data.get("readingPeriod", {})
         index_details = citireindex_data.get("indexDetails", {})
         devices = index_details.get("devices", [])
+
+        # Dacă nu există device-uri în datele primite, returnează "Nu"
+        if not devices:
+            return "Nu"
 
         # Extragem datele relevante
         start_date_str = reading_period.get("startDate")
@@ -818,6 +837,13 @@ class CitirePermisaSensor(CoordinatorEntity, SensorEntity):
 
         index_details = citireindex_data.get("indexDetails", {})
         devices = index_details.get("devices", [])
+
+        # Dacă nu există device-uri, setăm doar atributul "În curs de actualizare"
+        if not devices:
+            return {
+                "În curs de actualizare": ""
+            }
+
         reading_period = citireindex_data.get("readingPeriod", {})
 
         # Găsim device-ul potrivit
