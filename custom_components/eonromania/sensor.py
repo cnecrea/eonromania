@@ -703,7 +703,7 @@ class ArhivaPlatiSensor(CoordinatorEntity, SensorEntity):
         # Calculăm totalul plăților
         total_value = sum(p.get("value", 0) for p in payments_list)
 
-        # Adăugăm informații despre fiecare plată
+        # Adăugăm informații despre fiecare plată, incluzând IDX
         for idx, payment in enumerate(payments_list, start=1):
             raw_date = payment.get("paymentDate", "N/A")
             payment_value = payment.get("value", 0)
@@ -718,7 +718,7 @@ class ArhivaPlatiSensor(CoordinatorEntity, SensorEntity):
             else:
                 month_name = "necunoscut"
 
-            attributes[f"Plată factură luna {month_name}"] = f"{payment_value:.2f} lei"
+            attributes[f"Plată {idx} factură luna {month_name}"] = f"{payment_value:.2f} lei"
 
         attributes["---------------"] = ""
         attributes["Plăți efectuate"] = len(payments_list)
