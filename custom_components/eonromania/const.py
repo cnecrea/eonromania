@@ -26,6 +26,7 @@ URLS = {
     "comparareanualagrafic": "https://api2.eon.ro/invoices/v1/invoices/graphic-consumption/{cod_incasare}",
     "arhiva": "https://api2.eon.ro/meterreadings/v1/meter-reading/{cod_incasare}/history",
     "facturasold": "https://api2.eon.ro/invoices/v1/invoices/list?accountContract={cod_incasare}&status=unpaid",
+    "facturasold_prosum_balance": "https://api2.eon.ro/invoices/v1/invoices/invoice-balance-prosum?accountContract={cod_incasare}",
     "trimite_index": "https://api2.eon.ro/meterreadings/v1/meter-reading/index" 
 }
 

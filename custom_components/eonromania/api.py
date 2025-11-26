@@ -92,6 +92,76 @@ class EonApiClient:
             on_error="Eroare la obținerea soldului facturilor."
         )
 
+    async def async_fetch_facturasold_prosum_balance_data(self, cod_incasare: str):
+        """Obține datele despre soldul facturilor de prosumator."""
+        return await self._request_with_token(
+            method="GET",
+            url=URLS["facturasold_prosum_balance"].format(cod_incasare=cod_incasare),
+            on_error="Eroare la obținerea soldului facturilor de prosumator."
+        )
+
+    async def async_fetch_facturasold_prosum_data(self, cod_incasare: str):
+        """
+        Obține toate facturile de prosumator (paginate) pentru un cont dat.
+        Returnează o listă unică, cumulând datele de pe toate paginile.
+        """
+        if not await self._ensure_token():
+            return None
+
+        results = []
+        page = 1
+        while True:
+            url = (
+                f"https://api2.eon.ro/invoices/v1/invoices/list-prosum"
+                f"?accountContract={cod_incasare}&page={page}"
+            )
+            headers = {**HEADERS_POST, "Authorization": f"Bearer {self._token}"}
+
+            async with self._session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    # Adunăm toate înregistrările din "list"
+                    chunk = data.get("list", [])
+                    results.extend(chunk)
+
+                    has_next = data.get("hasNext", False)
+                    _LOGGER.debug(
+                        "Page=%s, hasNext=%s, items_in_chunk=%s",
+                        page, has_next, len(chunk)
+                    )
+
+                    if not has_next:
+                        # Nu mai există pagini
+                        break
+                    page += 1
+                elif resp.status == 401:
+                    # Token invalid sau expirat -> încercăm re-login + retry
+                    _LOGGER.error(
+                        "Eroare la obținerea datelor despre facturile de prosumator (page=%s). "
+                        "Status=%s, Răspuns=%s. Se reîncearcă re-login.",
+                        page, resp.status, await resp.text()
+                    )
+                    # Ne dezautentificăm forțat
+                    self._token = None
+                    # Încercăm un re-login
+                    if await self.async_login():
+                        # Dacă reușește login, refacem cererea o singură dată
+                        continue
+                    else:
+                        # Dacă tot eșuează, ne oprim
+                        return results if results else None
+                else:
+                    _LOGGER.error(
+                        "Eroare la obținerea datelor despre facturile de prosumator (page=%s). "
+                        "Status=%s, Răspuns=%s",
+                        page,
+                        resp.status,
+                        await resp.text()
+                    )
+                    break
+
+        return results
+
     async def async_fetch_payments_data(self, cod_incasare: str):
         """
         Obține toate înregistrările de plăți (paginate) pentru un cont dat.

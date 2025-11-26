@@ -41,6 +41,10 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         # Apel nou pentru plățile paginate
         payments_data = await self.api_client.async_fetch_payments_data(self.cod_incasare)
 
+        # Apeluri pentru facturile de prosumator
+        facturasold_prosum_data = await self.api_client.async_fetch_facturasold_prosum_data(self.cod_incasare)
+        facturasold_prosum_balance_data = await self.api_client.async_fetch_facturasold_prosum_balance_data(self.cod_incasare)
+
         return {
             "dateuser": dateuser_data,
             "citireindex": citireindex_data,
@@ -49,4 +53,6 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             "arhiva": arhiva_data,
             "facturasold": facturasold_data,
             "payments": payments_data,
+            "facturasold_prosum": facturasold_prosum_data,
+            "facturasold_prosum_balance": facturasold_prosum_balance_data,
         }

@@ -82,6 +82,17 @@ Atribute:
   - **Restanțe pe luna [numele lunii]**: Soldul restant pentru luna respectivă.
   - **Total sold**: Suma totală a soldului restant, afișată în lei.
 
+### Senzor `Factură restantă prosumator`:
+- **📄 Detalii sold prosumator**:
+  - Afișează dacă există facturi restante pentru prosumatori (utilizatori cu panouri solare sau alte surse de energie regenerabilă).
+- **📊 Atribute disponibile**:
+  - **Restanțe pe luna [numele lunii]**: Soldul restant pentru luna respectivă pentru facturile de prosumator.
+  - **Sold total prosumator**: Soldul total al facturilor de prosumator.
+  - **Total neachitat**: Suma totală a soldului restant, afișată în lei.
+- **🔄 Starea senzorului**:
+  - **Da**: Există facturi de prosumator neachitate.
+  - **Nu**: Nu există facturi de prosumator neachitate.
+
 ### Senzor `Index curent`:
   - **🔍 Monitorizare date index**:
       - Afișează informații detaliate despre indexul curent al contorului.
@@ -173,6 +184,10 @@ entities:
     name: Date Contract
   - entity: sensor.eonromania_index_curent_00XXXXXXXXXX
     name: Index Curent
+  - entity: sensor.eonromania_factura_restanta_00XXXXXXXXXX
+    name: Factură Restantă
+  - entity: sensor.eonromania_factura_prosum_00XXXXXXXXXX
+    name: Factură Restantă Prosumator
   - entity: sensor.eonromania_arhiva_index_00XXXXXXXXXX_2024
     name: Arhivă 2024
 ```
