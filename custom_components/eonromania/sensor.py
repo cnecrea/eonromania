@@ -557,10 +557,16 @@ class FacturaProsumSensor(CoordinatorEntity, SensorEntity):
         # Verificăm dacă `facturasold_prosum` există și este o listă
         data = self.coordinator.data.get("facturasold_prosum")
         if not data or not isinstance(data, list):
-            # Dacă `facturasold_prosum` nu există, considerăm că nu sunt facturi neachitate
+            # Dacă `facturasold_prosum` nu există, verificăm balance-ul
+            balance_data = self.coordinator.data.get("facturasold_prosum_balance")
+            if balance_data and isinstance(balance_data, dict):
+                balance = float(balance_data.get("balance", 0))
+                # Pentru prosumatori, balance pozitiv = datorie, balance negativ = credit
+                return "Da" if balance > 0 else "Nu"
             return "Nu"
-        # Verificăm dacă există cel puțin o factură neachitată
-        return "Da" if any(item.get("issuedValue", 0) > 0 for item in data) else "Nu"
+        # Verificăm dacă există cel puțin o factură cu valoare pozitivă (datorie)
+        # Valorile negative sunt credite (prosumatorul a produs mai mult decât a consumat)
+        return "Da" if any(float(item.get("issuedValue", 0)) > 0 for item in data) else "Nu"
 
     @property
     def extra_state_attributes(self):
@@ -577,6 +583,7 @@ class FacturaProsumSensor(CoordinatorEntity, SensorEntity):
 
         attributes = {}
         total_sold = 0.0
+        total_credit = 0.0
 
         for idx, item in enumerate(data, start=1):
             issued_value = float(item.get("issuedValue", 0))
@@ -585,15 +592,18 @@ class FacturaProsumSensor(CoordinatorEntity, SensorEntity):
             # Determinăm valoarea care trebuie afișată
             display_value = issued_value if issued_value == balance_value else balance_value
 
-            if display_value > 0:
-                total_sold += display_value
+            raw_date = item.get("maturityDate", "Necunoscut")
+            invoice_number = item.get("invoiceNumber", "N/A")
+            invoice_type = item.get("type", "Necunoscut")
+            
+            try:
+                parsed_date = datetime.strptime(raw_date, "%d.%m.%Y")
+                month_name_en = parsed_date.strftime("%B")
+                month_name_ro = MONTHS_RO.get(month_name_en, "necunoscut")
 
-                raw_date = item.get("maturityDate", "Necunoscut")
-                try:
-                    parsed_date = datetime.strptime(raw_date, "%d.%m.%Y")
-                    month_name_en = parsed_date.strftime("%B")
-                    month_name_ro = MONTHS_RO.get(month_name_en, "necunoscut")
-
+                if display_value > 0:
+                    # Datorie (valoare pozitivă)
+                    total_sold += display_value
                     days_until_due = (parsed_date - datetime.now()).days
                     if days_until_due < 0:
                         day_unit = "zi" if abs(days_until_due) == 1 else "zile"
@@ -606,20 +616,47 @@ class FacturaProsumSensor(CoordinatorEntity, SensorEntity):
                         day_unit = "zi" if days_until_due == 1 else "zile"
                         msg = (f"Următoarea sumă de {display_value:.2f} lei este scadentă "
                             f"pe luna {month_name_ro} ({days_until_due} {day_unit})")
+                    attributes[f"Factură {idx} ({invoice_number})"] = msg
+                elif display_value < 0:
+                    # Credit (valoare negativă - prosumatorul a produs mai mult)
+                    total_credit += abs(display_value)
+                    msg = (f"Credit de {abs(display_value):.2f} lei pentru {invoice_type.lower()} "
+                           f"(scadentă {raw_date})")
+                    attributes[f"Credit {idx} ({invoice_number})"] = msg
+                else:
+                    # Valoare zero
+                    attributes[f"Factură {idx} ({invoice_number})"] = f"Fără sold (scadentă {raw_date})"
 
-                    attributes[f"Factură {idx}"] = msg
-
-                except ValueError:
-                    attributes[f"Factură {idx}"] = "Data scadenței necunoscută"
+            except ValueError:
+                if display_value > 0:
+                    attributes[f"Factură {idx} ({invoice_number})"] = f"Datorie de {display_value:.2f} lei (data necunoscută)"
+                elif display_value < 0:
+                    attributes[f"Credit {idx} ({invoice_number})"] = f"Credit de {abs(display_value):.2f} lei (data necunoscută)"
 
         # Adăugăm și informații despre balance-ul de prosumator dacă există
         balance_data = self.coordinator.data.get("facturasold_prosum_balance")
         if balance_data and isinstance(balance_data, dict):
-            balance_value = balance_data.get("balanceValue", 0)
-            if balance_value:
-                attributes["Sold total prosumator"] = f"{float(balance_value):,.2f} lei"
+            balance = float(balance_data.get("balance", 0))
+            refund = balance_data.get("refund", False)
+            refund_in_process = balance_data.get("refundInProcess", False)
+            balance_date = balance_data.get("date", "Necunoscut")
+            
+            if balance != 0:
+                if balance > 0:
+                    attributes["Sold total prosumator"] = f"{balance:,.2f} lei (datorie)"
+                else:
+                    attributes["Sold total prosumator"] = f"{abs(balance):,.2f} lei (credit)"
+                    if refund:
+                        attributes["Rambursare disponibilă"] = "Da"
+                    if refund_in_process:
+                        attributes["Rambursare în proces"] = "Da"
+                attributes["Data sold"] = balance_date
 
         attributes["---------------"] = ""
+        if total_sold > 0:
+            attributes["Total datorie"] = f"{total_sold:,.2f} lei"
+        if total_credit > 0:
+            attributes["Total credit"] = f"{total_credit:,.2f} lei"
         attributes["Total neachitat"] = f"{total_sold:,.2f} lei" if total_sold > 0 else "0.00 lei"
         attributes["attribution"] = ATTRIBUTION
 
