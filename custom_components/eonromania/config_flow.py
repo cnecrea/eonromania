@@ -1,7 +1,8 @@
-"""ConfigFlow și OptionsFlow pentru integrarea EON România."""
+"""ConfigFlow și OptionsFlow pentru integrarea E·ON România."""
 
 import logging
 import voluptuous as vol
+
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -11,51 +12,77 @@ from .api import EonApiClient
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Gestionarea ConfigFlow pentru integrarea EON România."""
+    """Gestionarea ConfigFlow pentru integrarea E·ON România."""
 
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
         """Pasul inițial pentru configurare."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             username = user_input["username"]
             password = user_input["password"]
             cod_incasare = user_input["cod_incasare"]
-            update_interval = user_input["update_interval"]
+            update_interval = user_input.get("update_interval", DEFAULT_UPDATE_INTERVAL)
 
             # Validăm și ajustăm cod_incasare la 12 caractere (dacă e necesar)
             try:
                 if len(cod_incasare) < 12:
-                    cod_incasare = cod_incasare.zfill(12)  # completează cu zerouri
+                    cod_incasare = cod_incasare.zfill(12)
                 elif len(cod_incasare) > 12:
                     raise ValueError("Codul de încasare este prea lung.")
             except ValueError:
                 errors["cod_incasare"] = "invalid_cod_incasare"
-                _LOGGER.error("Codul de încasare invalid: %s", cod_incasare)
+                _LOGGER.warning(
+                    "Cod de încasare invalid (lungime nepermisă). contract=%s",
+                    cod_incasare,
+                )
 
             if not errors:
-                # Testăm autentificarea
+                # Testăm autentificarea (NU logăm parola)
                 session = async_get_clientsession(self.hass)
                 api_client = EonApiClient(session, username, password)
-                success = await api_client.async_login()
+
+                try:
+                    success = await api_client.async_login()
+                except Exception as err:
+                    _LOGGER.exception(
+                        "Eroare neașteptată la testarea autentificării (utilizator=%s, contract=%s): %s",
+                        username,
+                        cod_incasare,
+                        err,
+                    )
+                    success = False
 
                 if success:
-                    # Creăm o intrare nouă (config entry)
+                    _LOGGER.info(
+                        "Autentificare reușită. Se creează intrarea (utilizator=%s, contract=%s).",
+                        username,
+                        cod_incasare,
+                    )
+
+                    # IMPORTANT: update_interval se pune în options, nu în data.
                     return self.async_create_entry(
-                        title=f"E-ON România ({cod_incasare})",
+                        title=f"E·ON România ({cod_incasare})",
                         data={
                             "username": username,
-                            "password": password,
+                            "password": password,  # stocat în config entry; NU se loghează
                             "cod_incasare": cod_incasare,
+                        },
+                        options={
                             "update_interval": update_interval,
                         },
                     )
-                else:
-                    errors["base"] = "auth_failed"
-                    _LOGGER.error("Autentificare eșuată pentru utilizatorul %s", username)
+
+                errors["base"] = "auth_failed"
+                _LOGGER.warning(
+                    "Autentificare eșuată (utilizator=%s, contract=%s).",
+                    username,
+                    cod_incasare,
+                )
 
         data_schema = vol.Schema(
             {
@@ -66,7 +93,11 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
         )
 
-        return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=data_schema,
+            errors=errors,
+        )
 
     @staticmethod
     @callback
@@ -76,43 +107,76 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
-    """Gestionarea OptionsFlow pentru integrarea EON România."""
+    """Gestionarea OptionsFlow pentru integrarea E·ON România."""
 
-    def __init__(self, config_entry):
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         """Pasul inițial pentru modificarea opțiunilor."""
-        _LOGGER.debug("OptionsFlow inițializat pentru %s", self.config_entry.entry_id)
+        _LOGGER.debug(
+            "Inițializare OptionsFlow pentru %s (entry_id=%s).",
+            DOMAIN,
+            self.config_entry.entry_id,
+        )
 
         if user_input is not None:
-            # Actualizăm datele intrării
-            _LOGGER.debug("Modificare date: %s", user_input)
+            # NU logăm user_input: conține parola.
+            _LOGGER.info(
+                "Se actualizează opțiunile integrării %s (entry_id=%s, utilizator=%s, contract=%s).",
+                DOMAIN,
+                self.config_entry.entry_id,
+                user_input.get("username", self.config_entry.data.get("username", "")),
+                user_input.get("cod_incasare", self.config_entry.data.get("cod_incasare", "")),
+            )
 
             updated_data = {
-                "username": user_input["username"],
-                "password": user_input["password"],
-                "cod_incasare": user_input["cod_incasare"],
+                "username": user_input.get(
+                    "username", self.config_entry.data.get("username", "")
+                ),
+                "password": user_input.get(
+                    "password", self.config_entry.data.get("password", "")
+                ),
+                "cod_incasare": user_input.get(
+                    "cod_incasare", self.config_entry.data.get("cod_incasare", "")
+                ),
             }
             updated_options = {
-                "update_interval": user_input["update_interval"]
+                "update_interval": user_input.get(
+                    "update_interval",
+                    self.config_entry.options.get(
+                        "update_interval", DEFAULT_UPDATE_INTERVAL
+                    ),
+                ),
             }
 
-            # În Home Assistant, config_entry.data e readonly la OptionsFlow,
-            # așa că putem muta ceva date în 'options' la nevoie.
             self.hass.config_entries.async_update_entry(
                 self.config_entry,
                 data=updated_data,
-                options=updated_options
+                options=updated_options,
             )
             return self.async_create_entry(title="", data={})
 
         data_schema = vol.Schema(
             {
-                vol.Optional("username", default=self.config_entry.data.get("username", "")): str,
-                vol.Optional("password", default=self.config_entry.data.get("password", "")): str,
-                vol.Optional("cod_incasare", default=self.config_entry.data.get("cod_incasare", "")): str,
-                vol.Optional("update_interval", default=self.config_entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL)): int,
+                vol.Optional(
+                    "username",
+                    default=self.config_entry.data.get("username", ""),
+                ): str,
+                vol.Optional(
+                    "password",
+                    default=self.config_entry.data.get("password", ""),
+                ): str,
+                vol.Optional(
+                    "cod_incasare",
+                    default=self.config_entry.data.get("cod_incasare", ""),
+                ): str,
+                vol.Optional(
+                    "update_interval",
+                    default=self.config_entry.options.get(
+                        "update_interval", DEFAULT_UPDATE_INTERVAL
+                    ),
+                ): int,
             }
         )
 
