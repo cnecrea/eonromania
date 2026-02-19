@@ -1,5 +1,6 @@
 {
   "name": "E-ON România",
   "render_readme": true,
-  "country": ["RO"]
+  "country": ["RO"],
+  "homeassistant": "2025.11.0"
 }
