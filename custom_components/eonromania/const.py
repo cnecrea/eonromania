@@ -1,4 +1,4 @@
-"""Constante pentru integrarea EON România."""
+"""Constante pentru integrarea E·ON România."""
 
 DOMAIN = "eonromania"
 
@@ -26,8 +26,14 @@ URLS = {
     "comparareanualagrafic": "https://api2.eon.ro/invoices/v1/invoices/graphic-consumption/{cod_incasare}",
     "arhiva": "https://api2.eon.ro/meterreadings/v1/meter-reading/{cod_incasare}/history",
     "facturasold": "https://api2.eon.ro/invoices/v1/invoices/list?accountContract={cod_incasare}&status=unpaid",
-    "trimite_index": "https://api2.eon.ro/meterreadings/v1/meter-reading/index" 
+    "trimite_index": "https://api2.eon.ro/meterreadings/v1/meter-reading/index",
 }
 
+# Platforme suportate
+PLATFORMS: list[str] = ["sensor", "button"]
+
 # Atribuție
-ATTRIBUTION = "Date furnizate de E-ON România"
+ATTRIBUTION = "Date furnizate de E·ON România"
+
+# Timeout implicit pentru requesturi API (secunde)
+API_TIMEOUT = 30
