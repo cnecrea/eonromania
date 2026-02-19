@@ -1,9 +1,9 @@
 {
-    "title": "E-ON Roumanie",
+    "title": "E·ON Roumanie",
     "config": {
         "step": {
             "user": {
-                "title": "Configuration pour E-ON Roumanie",
+                "title": "Configuration pour E·ON Roumanie",
                 "description": "Entrez les informations de votre compte pour l'authentification.",
                 "data": {
                     "username": "Nom d'utilisateur",
@@ -22,7 +22,7 @@
     "options": {
         "step": {
             "init": {
-                "title": "Modifier les options pour E-ON Roumanie",
+                "title": "Modifier les options pour E·ON Roumanie",
                 "description": "Mettez à jour les informations de votre compte et l'intervalle de mise à jour.",
                 "data": {
                     "username": "Nom d'utilisateur",
