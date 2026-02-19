@@ -1,9 +1,9 @@
 {
-    "title": "E-ON Romania",
+    "title": "E·ON Romania",
     "config": {
         "step": {
             "user": {
-                "title": "Configuration for E-ON Romania",
+                "title": "Configuration for E·ON Romania",
                 "description": "Enter your account details for authentication.",
                 "data": {
                     "username": "Username",
@@ -22,7 +22,7 @@
     "options": {
         "step": {
             "init": {
-                "title": "Modify Options for E-ON Romania",
+                "title": "Modify Options for E·ON Romania",
                 "description": "Update your account details and update interval.",
                 "data": {
                     "username": "Username",
