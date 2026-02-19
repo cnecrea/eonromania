@@ -1,9 +1,9 @@
 {
-    "title": "E-ON Rumanía",
+    "title": "E·ON Rumanía",
     "config": {
         "step": {
             "user": {
-                "title": "Configuración para E-ON Rumanía",
+                "title": "Configuración para E·ON Rumanía",
                 "description": "Ingrese los detalles de su cuenta para la autenticación.",
                 "data": {
                     "username": "Usuario",
@@ -22,7 +22,7 @@
     "options": {
         "step": {
             "init": {
-                "title": "Modificar opciones para E-ON Rumanía",
+                "title": "Modificar opciones para E·ON Rumanía",
                 "description": "Actualice los detalles de su cuenta y el intervalo de actualización.",
                 "data": {
                     "username": "Usuario",
