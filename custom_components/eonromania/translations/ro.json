@@ -1,9 +1,9 @@
 {
-    "title": "E-ON România",
+    "title": "E·ON România",
     "config": {
         "step": {
             "user": {
-                "title": "Configurare pentru E-ON România",
+                "title": "Configurare pentru E·ON România",
                 "description": "Introduceți detaliile contului pentru autentificare.",
                 "data": {
                     "username": "Nume de utilizator",
@@ -22,7 +22,7 @@
     "options": {
         "step": {
             "init": {
-                "title": "Modificați opțiunile pentru E-ON România",
+                "title": "Modificați opțiunile pentru E·ON România",
                 "description": "Actualizați informațiile contului și intervalul de actualizare.",
                 "data": {
                     "username": "Nume de utilizator",
