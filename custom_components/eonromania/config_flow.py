@@ -103,14 +103,13 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Returnează fluxul de opțiuni."""
-        return EonRomaniaOptionsFlow(config_entry)
+        # IMPORTANT: OptionsFlow are deja self.config_entry (property read-only setat de HA).
+        # Nu trebuie să îl pasăm și nici să îl setăm manual.
+        return EonRomaniaOptionsFlow()
 
 
 class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
     """Gestionarea OptionsFlow pentru integrarea E·ON România."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         """Pasul inițial pentru modificarea opțiunilor."""
@@ -127,7 +126,9 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
                 DOMAIN,
                 self.config_entry.entry_id,
                 user_input.get("username", self.config_entry.data.get("username", "")),
-                user_input.get("cod_incasare", self.config_entry.data.get("cod_incasare", "")),
+                user_input.get(
+                    "cod_incasare", self.config_entry.data.get("cod_incasare", "")
+                ),
             )
 
             updated_data = {
