@@ -1,8 +1,6 @@
 ![logo-main](https://github.com/user-attachments/assets/5841ec01-81c9-4c25-8373-b09d9ba11fe6)
 
 # E-ON România - Integrare pentru Home Assistant 🏠🇷🇴
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/v/release/cnecrea/eonromania)](https://github.com/cnecrea/eonromania/releases)
 
 Această integrare pentru Home Assistant oferă **monitorizare completă** a datelor contractuale și a indexurilor de consum pentru utilizatorii E-ON România. Integrarea este configurabilă prin interfața UI și permite afișarea datelor despre contract, citirea indexurilor curente, facturile restante (inclusiv prosumator) și arhivarea datelor istorice. 🚀
 
@@ -154,6 +152,15 @@ Atribute:
 - Asigură-te că formatul codului de încasare este corect pentru a evita problemele de conectare.
 - Dacă ai un cont DUO, consultă [FAQ — Am cont DUO](./FAQ.md#am-cont-duo-pot-folosi-integrarea) pentru a găsi codurile de încasare corecte.
 
+### 🏷️ Denumirea entităților:
+Integrarea folosește `has_entity_name = True`, ceea ce înseamnă că Home Assistant construiește automat numele complet al entității din **numele dispozitivului** + **numele senzorului**. De exemplu:
+- Dispozitiv: `E·ON România (001234567890)`
+- Senzor: `Date contract`
+- Numele afișat: `E·ON România (001234567890) Date contract`
+- Entity ID generat: `sensor.e_on_romania_001234567890_date_contract`
+
+Acesta este comportamentul standard al Home Assistant și asigură unicitatea entităților, mai ales dacă ai mai multe coduri de încasare configurate.
+
 ---
 
 ## 🚀 Instalare
@@ -180,7 +187,7 @@ alias: Notificare factură restantă E·ON
 description: Notificare dacă există facturi neachitate
 triggers:
   - trigger: state
-    entity_id: sensor.factura_restanta
+    entity_id: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta
     to: "Da"
 actions:
   - action: notify.mobile_app_telefonul_meu
@@ -188,7 +195,7 @@ actions:
       title: "Factură restantă E·ON ⚡"
       message: >-
         Ai o factură neachitată.
-        Total: {{ state_attr('sensor.factura_restanta', 'Total neachitat') }}
+        Total: {{ state_attr('sensor.e_on_romania_00XXXXXXXXXX_factura_restanta', 'Total neachitat') }}
 mode: single
 ```
 
@@ -199,19 +206,19 @@ Afișează datele principale pe interfața Home Assistant.
 type: entities
 title: E·ON România
 entities:
-  - entity: sensor.date_contract
+  - entity: sensor.e_on_romania_00XXXXXXXXXX_date_contract
     name: Date contract
-  - entity: sensor.index_curent
+  - entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
     name: Index curent
-  - entity: sensor.citire_permisa
+  - entity: sensor.e_on_romania_00XXXXXXXXXX_citire_permisa
     name: Citire permisă
-  - entity: sensor.factura_restanta
+  - entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta
     name: Factură restantă
-  - entity: sensor.factura_restanta_prosumator
+  - entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta_prosumator
     name: Factură prosumator
 ```
 
-> **Notă:** Numele entităților pot varia în funcție de codul tău de încasare. Verifică entity_id-urile exacte în **Setări** → **Dispozitive și Servicii** → **E·ON România**.
+> **⚠️ Important:** Înlocuiește `00XXXXXXXXXX` cu codul tău real de încasare (12 cifre). Entity_id-urile exacte le găsești în **Setări** → **Dispozitive și Servicii** → **E·ON România** → click pe dispozitiv.
 
 Mai multe exemple de carduri și automatizări găsești în [SETUP.md](./SETUP.md).
 
