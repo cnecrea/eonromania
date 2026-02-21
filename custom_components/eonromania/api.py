@@ -179,6 +179,87 @@ class EonApiClient:
 
         return results
 
+    async def async_fetch_facturasold_prosum_balance_data(self, cod_incasare: str):
+        """Obține datele despre soldul facturilor de prosumator."""
+        return await self._request_with_token(
+            method="GET",
+            url=URLS["facturasold_prosum_balance"].format(cod_incasare=cod_incasare),
+            on_error="Eroare la obținerea soldului facturilor de prosumator.",
+        )
+
+    async def async_fetch_facturasold_prosum_data(self, cod_incasare: str):
+        """
+        Obține toate facturile de prosumator (paginate) pentru un cont dat.
+        Returnează o listă unică, cumulând datele de pe toate paginile.
+        """
+        if not await self._ensure_token():
+            return None
+
+        results: list = []
+        page = 1
+        retried = False
+
+        while True:
+            url = (
+                "https://api2.eon.ro/invoices/v1/invoices/list-prosum"
+                f"?accountContract={cod_incasare}&page={page}"
+            )
+            headers = {**HEADERS_POST, "Authorization": f"Bearer {self._token}"}
+
+            try:
+                async with self._session.get(
+                    url, headers=headers, timeout=self._timeout
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        chunk = data.get("list", [])
+                        results.extend(chunk)
+                        retried = False  # reset flag la succes
+
+                        has_next = data.get("hasNext", False)
+                        _LOGGER.debug(
+                            "Facturi prosumator: pagină=%s, are_pagină_următoare=%s, elemente=%s",
+                            page,
+                            has_next,
+                            len(chunk),
+                        )
+
+                        if not has_next:
+                            break
+                        page += 1
+                        continue
+
+                    if resp.status == 401 and not retried:
+                        _LOGGER.warning(
+                            "Token expirat la obținerea facturilor de prosumator (pagină=%s). "
+                            "Se reîncearcă autentificarea...",
+                            page,
+                        )
+                        self._token = None
+                        if await self.async_login():
+                            retried = True
+                            continue
+                        return results if results else None
+
+                    _LOGGER.error(
+                        "Eroare la obținerea facturilor de prosumator (pagină=%s). Cod HTTP=%s, Răspuns=%s",
+                        page,
+                        resp.status,
+                        await resp.text(),
+                    )
+                    break
+
+            except asyncio.TimeoutError:
+                _LOGGER.error(
+                    "Depășire de timp la obținerea facturilor de prosumator (pagină=%s).", page
+                )
+                break
+            except Exception as e:
+                _LOGGER.error("Eroare la obținerea facturilor de prosumator: %s", e)
+                break
+
+        return results
+
     async def async_trimite_index(
         self, account_contract: str, ablbelnr: str, index_value: int
     ):
