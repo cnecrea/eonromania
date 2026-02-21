@@ -56,6 +56,8 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                 arhiva_data,
                 facturasold_data,
                 payments_data,
+                facturasold_prosum_data,
+                facturasold_prosum_balance_data,
             ) = await asyncio.gather(
                 self.api_client.async_fetch_dateuser_data(cod_incasare),
                 self.api_client.async_fetch_citireindex_data(cod_incasare),
@@ -64,6 +66,8 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                 self.api_client.async_fetch_arhiva_data(cod_incasare),
                 self.api_client.async_fetch_facturasold_data(cod_incasare),
                 self.api_client.async_fetch_payments_data(cod_incasare),
+                self.api_client.async_fetch_facturasold_prosum_data(cod_incasare),
+                self.api_client.async_fetch_facturasold_prosum_balance_data(cod_incasare),
             )
 
         except asyncio.TimeoutError as err:
@@ -106,10 +110,12 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                 arhiva_data,
                 facturasold_data,
                 payments_data,
+                facturasold_prosum_data,
+                facturasold_prosum_balance_data,
             )
         )
         _LOGGER.debug(
-            "Actualizare E·ON finalizată (contract=%s). Endpointuri fără date: %s/7.",
+            "Actualizare E·ON finalizată (contract=%s). Endpointuri fără date: %s/9.",
             cod_incasare,
             none_count,
         )
@@ -122,4 +128,6 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             "arhiva": arhiva_data,
             "facturasold": facturasold_data,
             "payments": payments_data,
+            "facturasold_prosum": facturasold_prosum_data,
+            "facturasold_prosum_balance": facturasold_prosum_balance_data,
         }
