@@ -2,7 +2,7 @@
 
 # E-ON România - Integrare pentru Home Assistant 🏠🇷🇴
 
-Această integrare pentru Home Assistant oferă **monitorizare completă** a datelor contractuale și a indexurilor de consum pentru utilizatorii E-ON România. Integrarea este configurabilă prin interfața UI și permite afișarea datelor despre contract, citirea indexurilor curente și arhivarea datelor istorice. 🚀
+Această integrare pentru Home Assistant oferă **monitorizare completă** a datelor contractuale și a indexurilor de consum pentru utilizatorii E-ON România. Integrarea este configurabilă prin interfața UI și permite afișarea datelor despre contract, citirea indexurilor curente, facturile restante (inclusiv prosumator) și arhivarea datelor istorice. 🚀
 
 ## 🌟 Caracteristici
 
@@ -12,13 +12,14 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
 - **📊 Atribute disponibile**:
   - **An**: Anul pentru care se afișează datele.
   - **Consum lunar**: Cantitatea de gaz consumată pentru fiecare lună, exprimată în metri cubi.
+  - **Consum mediu zilnic**: Media zilnică a consumului pentru fiecare lună.
 
 ### Senzor `Arhivă index`:
 - **📚 Date istorice**:
   - Afișează indexurile lunare pentru fiecare an disponibil.
 - **📊 Atribute disponibile**:
   - **An**: Anul pentru care se afișează datele.
-  - **Indexuri lunare**: Indexurile consumului pentru fiecare lună.
+  - **Indexuri lunare**: Indexurile consumului pentru fiecare lună, inclusiv metoda de citire (autocitire, estimare, citire distribuitor).
 
 ### Senzor `Arhivă plăți`:
 - **📚 Date istorice**:
@@ -26,23 +27,25 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
 - **📊 Atribute disponibile**:
   - **An**: Anul pentru care se afișează datele.
   - **Plăți lunare**: Totalul plăților efectuate pentru fiecare lună în anul selectat.
+  - **Plăți efectuate**: Numărul total de plăți din anul respectiv.
+  - **Sumă totală**: Suma anuală a tuturor plăților, afișată în format românesc (1.234,56 lei).
 
 ### Senzor `Citire permisă`:
 - **🔍 Verificare perioadă trimitere**:
     - Afișează dacă perioada de trimitere a indexului este activă.
 - **📊 Atribute disponibile**:
     - **ID intern citire contor (SAP)**: Identificator unic pentru punctul de măsurare.
-    - **Perioada permisă pentru trimitere**: Intervalul de timp în care indexul poate fi transmis.
+    - **Indexul poate fi trimis până la**: Termenul limită pentru trimiterea indexului.
     - **Cod încasare**: Codul unic al contractului.
 - **🔄 Starea senzorului**:
     - **Da**: Trimiterea indexului este permisă.
     - **Nu**: Trimiterea indexului nu este permisă.
-    - **Indisponibil**: Datele nu sunt disponibile.
+    - **Eroare**: Datele nu sunt disponibile sau a apărut o problemă.
 
 ### Senzor `Convenție consum`:
 - **📊 Gestionarea consumului lunar**: Afișează detalii despre convenția de consum pe luni, incluzând doar lunile cu valori mai mari de 0.
 - **📄 Atribute disponibile**:
-  - **Valori lunare ale consumului**: Exemplu: `Convenție pentru luna ianuarie: 10 mc`.
+  - **Valori lunare ale consumului**: Exemplu: `Convenție din luna ianuarie: 10 mc`.
   - **Număr de luni configurate**: Totalul lunilor cu valori > 0.
 - **🔄 Starea senzorului**: Reprezintă numărul de luni configurate. Exemplu: `3` (pentru 3 luni configurate).
 - **🎯 Exemplu de afișare**:
@@ -50,9 +53,9 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
 ```text
 Stare principală: 3
 Atribute:
-  Convenție pentru luna ianuarie: 10 mc
-  Convenție pentru luna februarie: 5 mc
-  Convenție pentru luna martie: 15 mc
+  Convenție din luna ianuarie: 10 mc
+  Convenție din luna februarie: 5 mc
+  Convenție din luna martie: 15 mc
 ```
 
 ### Senzor `Date contract`:
@@ -71,34 +74,56 @@ Atribute:
         - **Tarif reglementat transport**: Costul transportului energiei.
       - **PCS (Potențial caloric superior)**: Valoarea calorică superioară a energiei.
       - **Adresă consum**: Adresa locației de consum.
-      - **Verificare instalație**: Data următoarei verificări tehnice a instalației.
+      - **Următoarea verificare a instalației**: Data următoarei verificări tehnice.
       - **Data inițierii reviziei**: Data la care începe următoarea revizie tehnică.
-      - **Revizie tehnică**: Data expirării următoarei revizii tehnice.
+      - **Următoarea revizie tehnică**: Data expirării următoarei revizii tehnice.
 
 ### Senzor `Factură restantă`:
 - **📄 Detalii sold**:
-  - Afișează dacă există facturi restante.
+  - Afișează dacă există facturi restante pe contul de consum.
 - **📊 Atribute disponibile**:
-  - **Restanțe pe luna [numele lunii]**: Soldul restant pentru luna respectivă.
-  - **Total sold**: Suma totală a soldului restant, afișată în lei.
+  - **Factură {nr}**: Detalii despre fiecare factură — sumă, scadență, zile rămase sau depășite.
+  - **Total neachitat**: Suma totală a soldului restant, afișată în format românesc (1.234,56 lei).
+- **🔄 Starea senzorului**:
+    - **Da**: Există cel puțin o factură neachitată.
+    - **Nu**: Nu există facturi restante.
+
+### Senzor `Factură restantă prosumator`:
+- **📄 Detalii sold prosumator**:
+  - Afișează dacă există facturi restante sau credite pe contul de prosumator (panouri fotovoltaice sau alte surse de producție conectate la rețea).
+- **📊 Atribute disponibile**:
+  - **Factură {nr} ({număr factură})**: Detalii despre fiecare datorie — sumă, scadență, zile rămase sau depășite.
+  - **Credit {nr} ({număr factură})**: Creditele acumulate (când ai produs mai mult decât ai consumat).
+  - **Sold total prosumator**: Soldul global — datorie sau credit.
+  - **Rambursare disponibilă**: Indică dacă poți solicita rambursarea creditului.
+  - **Rambursare în proces**: Indică dacă o rambursare este deja în curs de procesare.
+  - **Data sold**: Data la care a fost calculat soldul.
+  - **Total datorie**: Suma totală a datoriilor.
+  - **Total credit**: Suma totală a creditelor.
+  - **Total neachitat**: Suma netă de plată, afișată în format românesc (1.234,56 lei).
+- **🔄 Starea senzorului**:
+    - **Da**: Există cel puțin o factură neachitată (datorie) pe contul de prosumator.
+    - **Nu**: Nu există datorii (poate exista credit).
+- **💡 Notă**: Dacă nu ești prosumator, senzorul va afișa **Nu** cu atributul „Nu există facturi disponibile" — este un comportament normal.
 
 ### Senzor `Index curent`:
   - **🔍 Monitorizare date index**:
       - Afișează informații detaliate despre indexul curent al contorului.
   - **📊 Atribute disponibile**:
       - **Numărul dispozitivului**: ID-ul dispozitivului asociat contorului.
-      - **Data de început a citirii**: Data de început a perioadei de citire.
+      - **Numărul ID intern citire contor**: Identificatorul intern SAP.
+      - **Data de începere a următoarei citiri**: Data de început a perioadei de citire.
       - **Data de final a citirii**: Data de final a perioadei de citire.
-      - **Citirea contorului permisă**: Indică dacă citirea poate fi realizată în perioada curentă.
+      - **Autorizat să citească contorul**: Indică dacă citirea poate fi realizată în perioada curentă.
       - **Permite modificarea citirii**: Indică dacă indexul citit poate fi modificat.
       - **Dispozitiv inteligent**: Specifică dacă dispozitivul este un contor inteligent.
-      - **Tipul citirii curente**: Tipul citirii efectuate (de exemplu, autocitire).
+      - **Tipul citirii curente**: Tipul citirii efectuate (Citire distribuitor, Autocitire, Estimare).
       - **Citire anterioară**: Valoarea minimă a citirii anterioare.
       - **Ultima citire validată**: Ultima valoare validată a citirii.
       - **Index propus pentru facturare**: Valoarea indexului propus pentru facturare.
       - **Trimis la**: Data și ora la care a fost transmisă ultima citire.
       - **Poate fi modificat până la**: Data și ora până la care citirea poate fi modificată.
-
+  - **💡 Notă**: Indexul curent apare doar în perioada de citire. În afara acestei perioade, API-ul E·ON nu publică date și senzorul nu va avea informații. Consultă [FAQ](./FAQ.md) pentru detalii.
 
 ### Buton `Trimite index`:
 - **🔘 Buton interactiv**:
@@ -106,6 +131,7 @@ Atribute:
 - **📊 Funcționalități**:
     - Determină valoarea indexului din entitatea `input_number.gas_meter_reading`.
     - Validează și trimite indexul folosind endpoint-ul API.
+    - După trimitere, solicită automat actualizarea datelor din coordinator.
 
 
 ---
@@ -117,14 +143,14 @@ Atribute:
 2. Introdu datele contului E-ON:
    - **Nume utilizator**: username-ul contului tău E-ON.
    - **Parolă**: parola asociată contului tău.
-   - ~~**Cod încasare**: dacă codul este format din 10 cifre, de exemplu `2100023241`, trebuie să adaugi două zerouri la început. Rezultatul final ar trebui să fie `002100023241`.~~
-   - **Cod încasare**: Se găsește pe factura ta
-     - Nu mai este nevoie să introduci manual 00 înaintea codului de încasare! Dacă codul tău este format din 10 cifre (de exemplu `2100023241`), funcția de corectare implementată va adăuga automat două zerouri la început. Rezultatul final va deveni `002100023241`, astfel încât autentificarea să fie corectă și fără erori.
+   - **Cod încasare**: Se găsește pe factura ta.
+     - Nu mai este nevoie să introduci manual 00 înaintea codului de încasare! Dacă codul tău este format din mai puțin de 12 cifre (de exemplu `2100023241`), funcția de corectare implementată va adăuga automat zerourile necesare la început. Rezultatul final va deveni `002100023241`, astfel încât autentificarea să fie corectă și fără erori.
 3. Specifică intervalul de actualizare (implicit: 3600 secunde).
 
 ### Observații:
 - Verifică datele de autentificare înainte de salvare.
 - Asigură-te că formatul codului de încasare este corect pentru a evita problemele de conectare.
+- Dacă ai un cont DUO, consultă [FAQ — Am cont DUO](./FAQ.md#am-cont-duo-pot-folosi-integrarea) pentru a găsi codurile de încasare corecte.
 
 ---
 
@@ -144,38 +170,56 @@ Atribute:
 
 ## ✨ Exemple de utilizare
 
-### 🔔 Automatizare pentru Index:
-Creează o automatizare pentru a primi notificări când indexul curent depășește o valoare specificată.
+### 🔔 Automatizare pentru factură restantă:
+Creează o automatizare pentru a primi notificări când ai facturi neachitate.
 
 ```yaml
-alias: Notificare Index Ridicat
-description: Notificare dacă indexul depășește 1000
-trigger:
-  - platform: numeric_state
-    entity_id: sensor.eonromania_index_curent_00XXXXXXXXXX
-    above: 1000
-action:
-  - service: notify.mobile_app_your_phone
+alias: Notificare factură restantă E·ON
+description: Notificare dacă există facturi neachitate
+triggers:
+  - trigger: state
+    entity_id: sensor.factura_restanta
+    to: "Da"
+actions:
+  - action: notify.mobile_app_telefonul_meu
     data:
-      title: "Index Ridicat Detectat! ⚡"
-      message: "Indexul curent este {{ states('sensor.eonromania_index_curent_00XXXXXXXXXX') }}."
+      title: "Factură restantă E·ON ⚡"
+      message: >-
+        Ai o factură neachitată.
+        Total: {{ state_attr('sensor.factura_restanta', 'Total neachitat') }}
 mode: single
 ```
 
 ### 🔍 Card pentru Dashboard:
-Afișează datele despre contract, indexuri și arhivă pe interfața Home Assistant.
+Afișează datele principale pe interfața Home Assistant.
 
 ```yaml
 type: entities
-title: Monitorizare E-ON România
+title: E·ON România
 entities:
-  - entity: sensor.eonromania_date_contract_00XXXXXXXXXX
-    name: Date Contract
-  - entity: sensor.eonromania_index_curent_00XXXXXXXXXX
-    name: Index Curent
-  - entity: sensor.eonromania_arhiva_index_00XXXXXXXXXX_2024
-    name: Arhivă 2024
+  - entity: sensor.date_contract
+    name: Date contract
+  - entity: sensor.index_curent
+    name: Index curent
+  - entity: sensor.citire_permisa
+    name: Citire permisă
+  - entity: sensor.factura_restanta
+    name: Factură restantă
+  - entity: sensor.factura_restanta_prosumator
+    name: Factură prosumator
 ```
+
+> **Notă:** Numele entităților pot varia în funcție de codul tău de încasare. Verifică entity_id-urile exacte în **Setări** → **Dispozitive și Servicii** → **E·ON România**.
+
+Mai multe exemple de carduri și automatizări găsești în [SETUP.md](./SETUP.md).
+
+---
+
+## 📚 Documentație suplimentară
+
+- **[FAQ.md](./FAQ.md)** — Întrebări frecvente: cont DUO, index curent care nu apare, automatizare trimitere index, prosumator.
+- **[SETUP.md](./SETUP.md)** — Exemple detaliate de carduri Lovelace pentru fiecare senzor.
+- **[DEBUG.md](./DEBUG.md)** — Cum activezi logarea detaliată și cum analizezi problemele.
 
 ---
 
@@ -188,6 +232,8 @@ Ai întrebări despre utilizarea sau configurarea integrării? Găsește răspun
 - **Ce înseamnă index curent?**
 - **Nu îmi apare indexul curent. De ce?**
 - **Nu îmi apare senzorul citire permisă. De ce?**
+- **Ce înseamnă senzorul „Factură restantă prosumator"?**
+- **Nu sunt prosumator. Senzorul de prosumator îmi afișează „Nu" — e normal?**
 - **Vreau să trimit indexul de la gaz de forma automată. De ce am nevoie?**
 - **Am instalat un cititor de contor gaz. Cum fac automatizarea?**
 
