@@ -67,7 +67,7 @@ def format_ron(value: float) -> str:
 class EonRomaniaEntity(CoordinatorEntity[EonRomaniaCoordinator], SensorEntity):
     """Clasă de bază pentru entitățile E·ON România."""
 
-    _attr_has_entity_name = False
+    _attr_has_entity_name = True
 
     def __init__(self, coordinator: EonRomaniaCoordinator, config_entry: ConfigEntry):
         """Inițializare cu coordinator și config_entry."""
