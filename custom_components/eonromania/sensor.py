@@ -55,13 +55,19 @@ READING_TYPE_MAP = {
 }
 
 
+def format_ron(value: float) -> str:
+    """Formatează o valoare numerică în format românesc (1.234,56)."""
+    formatted = f"{value:,.2f}"
+    return formatted.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 # ------------------------------------------------------------------------
 # Clasă de bază pentru toate entitățile E·ON România
 # ------------------------------------------------------------------------
 class EonRomaniaEntity(CoordinatorEntity[EonRomaniaCoordinator], SensorEntity):
     """Clasă de bază pentru entitățile E·ON România."""
 
-    _attr_has_entity_name = True
+    _attr_has_entity_name = False
 
     def __init__(self, coordinator: EonRomaniaCoordinator, config_entry: ConfigEntry):
         """Inițializare cu coordinator și config_entry."""
@@ -108,6 +114,7 @@ async def async_setup_entry(
     sensors.append(DateContractSensor(coordinator, config_entry))
     sensors.append(ConventieConsumSensor(coordinator, config_entry))
     sensors.append(FacturaRestantaSensor(coordinator, config_entry))
+    sensors.append(FacturaProsumSensor(coordinator, config_entry))
 
     # 2. CitireIndexSensor și CitirePermisaSensor
     citireindex_data = coordinator.data.get("citireindex") if coordinator.data else None
@@ -519,7 +526,7 @@ class FacturaRestantaSensor(EonRomaniaEntity):
         data = self.coordinator.data.get("facturasold") if self.coordinator.data else None
         if not data or not isinstance(data, list):
             return {
-                "Total neachitat": "0.00 lei",
+                "Total neachitat": "0,00 lei",
                 "Detalii": "Nu există facturi disponibile",
                 "attribution": ATTRIBUTION,
             }
@@ -546,18 +553,18 @@ class FacturaRestantaSensor(EonRomaniaEntity):
                     if days_until_due < 0:
                         day_unit = "zi" if abs(days_until_due) == 1 else "zile"
                         msg = (
-                            f"Restanță de {display_value:.2f} lei, termen depășit cu "
+                            f"Restanță de {format_ron(display_value)} lei, termen depășit cu "
                             f"{abs(days_until_due)} {day_unit}"
                         )
                     elif days_until_due == 0:
                         msg = (
                             f"De achitat astăzi, {datetime.now().strftime('%d.%m.%Y')}: "
-                            f"{display_value:.2f} lei"
+                            f"{format_ron(display_value)} lei"
                         )
                     else:
                         day_unit = "zi" if days_until_due == 1 else "zile"
                         msg = (
-                            f"Următoarea sumă de {display_value:.2f} lei este scadentă "
+                            f"Următoarea sumă de {format_ron(display_value)} lei este scadentă "
                             f"pe luna {month_name_ro} ({days_until_due} {day_unit})"
                         )
 
@@ -567,7 +574,143 @@ class FacturaRestantaSensor(EonRomaniaEntity):
                     attributes[f"Factură {idx}"] = "Data scadenței necunoscută"
 
         attributes["---------------"] = ""
-        attributes["Total neachitat"] = f"{total_sold:,.2f} lei" if total_sold > 0 else "0.00 lei"
+        attributes["Total neachitat"] = f"{format_ron(total_sold)} lei" if total_sold > 0 else "0,00 lei"
+        attributes["attribution"] = ATTRIBUTION
+
+        return attributes
+
+
+
+
+# ------------------------------------------------------------------------
+# FacturaProsumSensor
+# ------------------------------------------------------------------------
+class FacturaProsumSensor(EonRomaniaEntity):
+    """Senzor pentru afișarea soldului restant al facturilor de prosumator."""
+
+    _attr_icon = "mdi:invoice-text-arrow-left"
+    _attr_translation_key = "factura_prosum"
+
+    def __init__(self, coordinator, config_entry):
+        super().__init__(coordinator, config_entry)
+        self._attr_unique_id = f"{DOMAIN}_factura_prosum_{config_entry.entry_id}"
+        self._attr_name = "Factură restantă prosumator"
+
+    @property
+    def native_value(self):
+        """Returnează starea principală (Da/Nu)."""
+        data = self.coordinator.data.get("facturasold_prosum") if self.coordinator.data else None
+        if not data or not isinstance(data, list):
+            # Dacă lista de facturi nu există, verificăm balance-ul
+            balance_data = self.coordinator.data.get("facturasold_prosum_balance") if self.coordinator.data else None
+            if balance_data and isinstance(balance_data, dict):
+                balance = float(balance_data.get("balance", 0))
+                # Pentru prosumatori, balance pozitiv = datorie, balance negativ = credit
+                return "Da" if balance > 0 else "Nu"
+            return "Nu"
+        # Verificăm dacă există cel puțin o factură cu valoare pozitivă (datorie)
+        return "Da" if any(float(item.get("issuedValue", 0)) > 0 for item in data) else "Nu"
+
+    @property
+    def extra_state_attributes(self):
+        """Atribute adiționale."""
+        data = self.coordinator.data.get("facturasold_prosum") if self.coordinator.data else None
+        if not data or not isinstance(data, list):
+            return {
+                "Total neachitat": "0,00 lei",
+                "Detalii": "Nu există facturi disponibile",
+                "attribution": ATTRIBUTION,
+            }
+
+        attributes = {}
+        total_sold = 0.0
+        total_credit = 0.0
+
+        for idx, item in enumerate(data, start=1):
+            issued_value = float(item.get("issuedValue", 0))
+            balance_value = float(item.get("balanceValue", 0))
+
+            # Determinăm valoarea care trebuie afișată
+            display_value = issued_value if issued_value == balance_value else balance_value
+
+            raw_date = item.get("maturityDate", "Necunoscut")
+            invoice_number = item.get("invoiceNumber", "N/A")
+            invoice_type = item.get("type", "Necunoscut")
+
+            try:
+                parsed_date = datetime.strptime(raw_date, "%d.%m.%Y")
+                month_name_en = parsed_date.strftime("%B")
+                month_name_ro = MONTHS_EN_RO.get(month_name_en, "necunoscut")
+
+                if display_value > 0:
+                    # Datorie (valoare pozitivă)
+                    total_sold += display_value
+                    days_until_due = (parsed_date - datetime.now()).days
+                    if days_until_due < 0:
+                        day_unit = "zi" if abs(days_until_due) == 1 else "zile"
+                        msg = (
+                            f"Restanță de {format_ron(display_value)} lei, termen depășit cu "
+                            f"{abs(days_until_due)} {day_unit}"
+                        )
+                    elif days_until_due == 0:
+                        msg = (
+                            f"De achitat astăzi, {datetime.now().strftime('%d.%m.%Y')}: "
+                            f"{format_ron(display_value)} lei"
+                        )
+                    else:
+                        day_unit = "zi" if days_until_due == 1 else "zile"
+                        msg = (
+                            f"Următoarea sumă de {format_ron(display_value)} lei este scadentă "
+                            f"pe luna {month_name_ro} ({days_until_due} {day_unit})"
+                        )
+                    attributes[f"Factură {idx} ({invoice_number})"] = msg
+                elif display_value < 0:
+                    # Credit (valoare negativă — prosumatorul a produs mai mult)
+                    total_credit += abs(display_value)
+                    msg = (
+                        f"Credit de {format_ron(abs(display_value))} lei pentru {invoice_type.lower()} "
+                        f"(scadentă {raw_date})"
+                    )
+                    attributes[f"Credit {idx} ({invoice_number})"] = msg
+                else:
+                    # Valoare zero
+                    attributes[f"Factură {idx} ({invoice_number})"] = f"Fără sold (scadentă {raw_date})"
+
+            except ValueError:
+                if display_value > 0:
+                    attributes[f"Factură {idx} ({invoice_number})"] = (
+                        f"Datorie de {format_ron(display_value)} lei (data necunoscută)"
+                    )
+                elif display_value < 0:
+                    attributes[f"Credit {idx} ({invoice_number})"] = (
+                        f"Credit de {format_ron(abs(display_value))} lei (data necunoscută)"
+                    )
+
+        # Adăugăm informații despre balance-ul de prosumator dacă există
+        balance_data = self.coordinator.data.get("facturasold_prosum_balance") if self.coordinator.data else None
+        if balance_data and isinstance(balance_data, dict):
+            balance = float(balance_data.get("balance", 0))
+            refund = balance_data.get("refund", False)
+            refund_in_process = balance_data.get("refundInProcess", False)
+            balance_date = balance_data.get("date", "Necunoscut")
+
+            if balance != 0:
+                if balance > 0:
+                    attributes["Sold total prosumator"] = f"{format_ron(balance)} lei (datorie)"
+                else:
+                    attributes["Sold total prosumator"] = f"{format_ron(abs(balance))} lei (credit)"
+                    if refund:
+                        attributes["Rambursare disponibilă"] = "Da"
+                    if refund_in_process:
+                        attributes["Rambursare în proces"] = "Da"
+                attributes["Data sold"] = balance_date
+
+        attributes["---------------"] = ""
+        if total_sold > 0:
+            attributes["Total datorie"] = f"{format_ron(total_sold)} lei"
+        if total_credit > 0:
+            attributes["Total credit"] = f"{format_ron(total_credit)} lei"
+        attributes["Total neachitat"] = f"{format_ron(total_sold)} lei" if total_sold > 0 else "0,00 lei"
         attributes["attribution"] = ATTRIBUTION
 
         return attributes
@@ -750,11 +893,11 @@ class ArhivaPlatiSensor(EonRomaniaEntity):
             else:
                 month_name = "necunoscut"
 
-            attributes[f"Plată {idx} factură luna {month_name}"] = f"{payment_value:.2f} lei"
+            attributes[f"Plată {idx} factură luna {month_name}"] = f"{format_ron(payment_value)} lei"
 
         attributes["---------------"] = ""
         attributes["Plăți efectuate"] = len(payments_list)
-        attributes["Sumă totală"] = f"{total_value:.2f} lei"
+        attributes["Sumă totală"] = f"{format_ron(total_value)} lei"
         attributes["attribution"] = ATTRIBUTION
         return attributes
 
