@@ -8,6 +8,7 @@
 - [Nu îmi apare senzorul „Citire permisă". De ce?](#nu-îmi-apare-senzorul-citire-permisă-de-ce)
 - [Ce înseamnă senzorul „Factură restantă prosumator"?](#ce-înseamnă-senzorul-factură-restantă-prosumator)
 - [Nu sunt prosumator. Senzorul de prosumator îmi afișează „Nu" — e normal?](#nu-sunt-prosumator-senzorul-de-prosumator-îmi-afișează-nu--e-normal)
+- [De ce entitățile au un nume lung, cu codul de încasare inclus?](#de-ce-entitățile-au-un-nume-lung-cu-codul-de-încasare-inclus)
 - [Vreau să trimit indexul automat. De ce am nevoie?](#vreau-să-trimit-indexul-automat-de-ce-am-nevoie)
 - [Am un cititor de contor gaz. Cum fac automatizarea?](#am-un-cititor-de-contor-gaz-cum-fac-automatizarea)
 - [De ce valorile sunt afișate cu punct și virgulă (1.234,56)?](#de-ce-valorile-sunt-afișate-cu-punct-și-virgulă-123456)
@@ -107,6 +108,22 @@ Absolut normal. Dacă nu ai contract de prosumator, API-ul E·ON nu returnează 
 
 ---
 
+## De ce entitățile au un nume lung, cu codul de încasare inclus?
+
+[↑ Înapoi la cuprins](#top)
+
+Integrarea folosește `has_entity_name = True`, care este pattern-ul recomandat de Home Assistant. Asta înseamnă că HA construiește automat numele complet al entității din **numele dispozitivului** + **numele senzorului**:
+
+- Dispozitiv: `E·ON România (001234567890)`
+- Senzor: `Citire permisă`
+- Numele afișat: `E·ON România (002103870166) Citire permisă`
+
+Acesta este comportamentul standard. Avantajul principal: dacă ai mai multe coduri de încasare (de exemplu, gaz + electricitate pe cont DUO), fiecare entitate are un nume unic, fără conflicte.
+
+În popup-ul unei entități, header-ul afișează corect numele dispozitivului pe o linie și numele senzorului pe alta — deci informația e bine structurată.
+
+---
+
 ## Vreau să trimit indexul automat. De ce am nevoie?
 
 [↑ Înapoi la cuprins](#top)
@@ -158,14 +175,14 @@ actions:
         sequence:
           - action: button.press
             target:
-              entity_id: button.trimite_index
+              entity_id: button.e_on_romania_00XXXXXXXXXX_trimite_index
 ```
 
 **Ce face:**
 - În **ziua 9** a fiecărei luni, la **09:00**, primești o notificare cu indexul curent.
 - La **12:00**, integrarea trimite automat indexul către E·ON.
 
-> **Notă:** Înlocuiește `button.trimite_index` și `notify.mobile_app_telefonul_meu` cu entity_id-urile tale reale. Le găsești în **Setări** → **Dispozitive și Servicii** → **E·ON România**.
+> **⚠️ Important:** Înlocuiește `00XXXXXXXXXX` cu codul tău real de încasare (12 cifre) și `notify.mobile_app_telefonul_meu` cu entity_id-ul serviciului tău de notificare. Entity_id-urile exacte le găsești în **Setări** → **Dispozitive și Servicii** → **E·ON România**.
 
 ---
 
