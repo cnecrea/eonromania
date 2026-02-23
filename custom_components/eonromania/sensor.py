@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.const import UnitOfVolume, UnitOfEnergy
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, ATTRIBUTION
 from .coordinator import EonRomaniaCoordinator
@@ -456,7 +457,7 @@ class CitirePermisaSensor(EonRomaniaEntity):
                 can_be_changed_till_str = indexes[0].get("canBeChangedTill")
 
         try:
-            today = datetime.now()
+            today = dt_util.now().replace(tzinfo=None)
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d") if start_date_str else None
             can_be_changed_till = (
                 datetime.strptime(can_be_changed_till_str, "%Y-%m-%d %H:%M:%S")
@@ -569,7 +570,7 @@ class FacturaRestantaSensor(EonRomaniaEntity):
                     month_name_en = parsed_date.strftime("%B")
                     month_name_ro = MONTHS_EN_RO.get(month_name_en, "necunoscut")
 
-                    days_until_due = (parsed_date - datetime.now()).days
+                    days_until_due = (parsed_date.date() - dt_util.now().date()).days
                     if days_until_due < 0:
                         day_unit = "zi" if abs(days_until_due) == 1 else "zile"
                         msg = (
@@ -578,7 +579,7 @@ class FacturaRestantaSensor(EonRomaniaEntity):
                         )
                     elif days_until_due == 0:
                         msg = (
-                            f"De achitat astăzi, {datetime.now().strftime('%d.%m.%Y')}: "
+                            f"De achitat astăzi, {dt_util.now().strftime('%d.%m.%Y')}: "
                             f"{format_ron(display_value)} lei"
                         )
                     else:
@@ -607,13 +608,13 @@ class FacturaProsumSensor(EonRomaniaEntity):
     """Senzor pentru afișarea soldului restant al facturilor de prosumator."""
 
     _attr_icon = "mdi:invoice-text-arrow-left"
-    _attr_translation_key = "factura_prosum"
+    _attr_translation_key = "factura_prosumator"
 
     def __init__(self, coordinator, config_entry):
         super().__init__(coordinator, config_entry)
         self._attr_name = "Factură restantă prosumator"
-        self._attr_unique_id = f"{DOMAIN}_factura_prosum_{config_entry.entry_id}"
-        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_factura_prosum"
+        self._attr_unique_id = f"{DOMAIN}_factura_prosumator_{config_entry.entry_id}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_factura_prosumator"
 
     @property
     def native_value(self):
@@ -659,7 +660,7 @@ class FacturaProsumSensor(EonRomaniaEntity):
 
                 if display_value > 0:
                     total_sold += display_value
-                    days_until_due = (parsed_date - datetime.now()).days
+                    days_until_due = (parsed_date.date() - dt_util.now().date()).days
                     if days_until_due < 0:
                         day_unit = "zi" if abs(days_until_due) == 1 else "zile"
                         msg = (
@@ -668,7 +669,7 @@ class FacturaProsumSensor(EonRomaniaEntity):
                         )
                     elif days_until_due == 0:
                         msg = (
-                            f"De achitat astăzi, {datetime.now().strftime('%d.%m.%Y')}: "
+                            f"De achitat astăzi, {dt_util.now().strftime('%d.%m.%Y')}: "
                             f"{format_ron(display_value)} lei"
                         )
                     else:
@@ -809,7 +810,7 @@ class ArhivaSensor(EonRomaniaEntity):
         um = coordinator.data.get("um", "m3") if coordinator.data else "m3"
         is_gaz = um.lower().startswith("m")
 
-        self._attr_name = f"Arhivă index gaz ({year})" if is_gaz else f"Arhivă index energie electrică ({year})"
+        self._attr_name = f"Arhivă index gaz · {year}" if is_gaz else f"Arhivă index energie electrică · {year}"
         self._attr_icon = "mdi:clipboard-text-clock" if is_gaz else "mdi:clipboard-text-clock-outline"
         self._attr_translation_key = "arhiva_index_gaz" if is_gaz else "arhiva_index_energie_electrica"
         self._attr_unique_id = f"{DOMAIN}_arhiva_index_{config_entry.entry_id}_{year}"
@@ -850,6 +851,8 @@ class ArhivaSensor(EonRomaniaEntity):
         if not year_data:
             return {}
 
+        unit = self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3" 
+
         attributes = {}
         readings_list = []
 
@@ -867,7 +870,7 @@ class ArhivaSensor(EonRomaniaEntity):
         readings_list.sort(key=lambda r: r[0])
 
         for _, reading_type_str, month_name, value in readings_list:
-            attributes[f"Index ({reading_type_str}) {month_name}"] = value
+            attributes[f"Index ({reading_type_str}) {month_name}"] = f"{value} {unit}"  # NOU
 
         attributes["attribution"] = ATTRIBUTION
         return attributes
@@ -885,7 +888,7 @@ class ArhivaPlatiSensor(EonRomaniaEntity):
     def __init__(self, coordinator, config_entry, year):
         super().__init__(coordinator, config_entry)
         self.year = year
-        self._attr_name = f"Arhivă plăți ({year})"
+        self._attr_name = f"Arhivă plăți · {year}"
         self._attr_unique_id = f"{DOMAIN}_arhiva_plati_{config_entry.entry_id}_{year}"
         self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_plati_{year}"
 
@@ -946,7 +949,7 @@ class ArhivaComparareConsumAnualGraficSensor(EonRomaniaEntity):
         um = coordinator.data.get("um", "m3") if coordinator.data else "m3"
         is_gaz = um.lower().startswith("m")
 
-        self._attr_name = f"Arhivă consum gaz ({year})" if is_gaz else f"Arhivă consum energie electrică ({year})"
+        self._attr_name = f"Arhivă consum gaz · {year}" if is_gaz else f"Arhivă consum energie electrică · {year}"
         self._attr_icon = "mdi:chart-bar" if is_gaz else "mdi:lightning-bolt"
         self._attr_translation_key = "arhiva_consum_gaz" if is_gaz else "arhiva_consum_energie_electrica"
         self._attr_unique_id = f"{DOMAIN}_arhiva_consum_{config_entry.entry_id}_{year}"
@@ -958,10 +961,9 @@ class ArhivaComparareConsumAnualGraficSensor(EonRomaniaEntity):
 
     @property
     def native_value(self):
-        """Returnează consumul total anual cu unitatea din JSON."""
-        unit = self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
+        """Returnează consumul total anual (valoare numerică)."""
         total = sum(v["consumptionValue"] for v in self._monthly_values.values())
-        return f"{total} {unit}"
+        return round(total, 2)
 
     @property
     def native_unit_of_measurement(self):
