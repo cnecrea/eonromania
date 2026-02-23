@@ -39,11 +39,17 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         _LOGGER.debug("Începe actualizarea datelor E·ON (contract=%s).", cod_incasare)
 
         try:
-            # Asigurăm un token valid DOAR dacă nu avem unul.
-            # Dacă tokenul e expirat (401), fiecare metodă din api_client
-            # gestionează reautentificarea individual, protejată de lock.
-            # Astfel evităm un login forțat la fiecare ciclu de refresh.
-            if not self.api_client.has_token:
+            # Login inteligent înainte de apelurile paralele:
+            # - Dacă nu avem token deloc → login obligatoriu
+            # - Dacă tokenul e probabil expirat (>55 min) → login proactiv
+            # - Dacă tokenul e proaspăt → îl reutilizăm
+            # Astfel evităm 9 cereri eșuate + 9 retry-uri la token expirat.
+            if not self.api_client.is_token_likely_valid():
+                _LOGGER.debug(
+                    "Token absent sau probabil expirat. Se face login proactiv (contract=%s).",
+                    cod_incasare,
+                )
+                self.api_client.invalidate_token()
                 ok = await self.api_client.async_login()
                 if not ok:
                     _LOGGER.warning(
