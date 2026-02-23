@@ -965,6 +965,7 @@ class ArhivaComparareConsumAnualGraficSensor(EonRomaniaEntity):
         total = sum(v["consumptionValue"] for v in self._monthly_values.values())
         return round(total, 2)
 
+
     @property
     def native_unit_of_measurement(self):
         """Nu setăm o unitate de măsură, astfel încât să nu se genereze grafic."""
