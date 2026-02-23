@@ -59,6 +59,8 @@ Dacă eșuează, cauți mesaje cu `Eroare la autentificare` sau `Cod HTTP=`:
 ERROR Eroare la autentificare. Cod HTTP=401, Răspuns=...
 ```
 
+**Notă:** Integrarea reutilizează token-ul între ciclurile de actualizare. Login-ul se face doar la pornire și când token-ul expiră (eroare 401). Dacă vezi `Token deja disponibil (obținut de alt apel concurent)`, înseamnă că un alt apel paralel a obținut deja token-ul — e un comportament normal.
+
 ### Actualizare date
 La fiecare ciclu de actualizare, coordinatorul loghează:
 ```
@@ -68,17 +70,45 @@ DEBUG Actualizare E·ON finalizată (contract=00XXXXXXXXXX). Endpointuri fără 
 
 Dacă `Endpointuri fără date` arată un număr mare (ex: 7/9), înseamnă că mai multe apeluri API au eșuat. Caută mesajele de eroare anterioare pentru detalii.
 
+**Numărul de endpointuri fără date:**
+- **0/9** — totul funcționează perfect
+- **1-2/9** — normal dacă nu ești prosumator (endpoint-urile `facturasold_prosum` și `facturasold_prosum_balance` returnează `None`)
+- **3+/9** — posibilă problemă cu API-ul E·ON sau cu credențialele; verifică erorile precedente
+
 ### Senzori de prosumator
 Dacă nu ești prosumator, e normal ca endpoint-urile `facturasold_prosum` și `facturasold_prosum_balance` să returneze `None`. Asta nu e o eroare — pur și simplu API-ul nu are date pentru acel contract.
 
 ### Trimitere index
-Când apeși butonul „Trimite index":
+Când apeși butonul „Trimite index gaz" (`button.eonromania_00XXXXXXXXXX_trimite_index_gaz`):
 ```
 DEBUG Se trimite indexul: valoare=XXX (contract=00XXXXXXXXXX, ablbelnr=...).
 DEBUG Index trimis cu succes pentru contractul 00XXXXXXXXXX.
 ```
 
 Dacă apare o eroare, mesajul va include codul HTTP și răspunsul serverului.
+
+**Erori frecvente la trimiterea indexului:**
+- `Nu există entitatea input_number.gas_meter_reading` — trebuie să creezi manual această entitate.
+- `Nu există datele de citire index (citireindex)` — nu ești în perioada de citire sau datele nu au fost încă obținute.
+- `Nu a fost găsit ID-ul intern al contorului (ablbelnr/SAP)` — API-ul nu a returnat identificatorul intern al contorului.
+
+### Unitatea de măsură
+Integrarea detectează automat unitatea de măsură din răspunsul API:
+```
+DEBUG Unitate de măsură detectată: 'm3' (contract=00XXXXXXXXXX).
+```
+
+- `m3` = gaz (metri cubi) — senzorii vor avea sufixul `_gaz`
+- `kwh` = energie electrică (kilowatt-oră) — senzorii vor avea sufixul `_energie_electrica`
+- Dacă câmpul lipsește, se folosește implicit `m3`.
+
+### Modificare opțiuni
+Când modifici opțiunile integrării, vei vedea:
+```
+INFO Opțiunile integrării eonromania s-au schimbat (entry_id=...). Se reîncarcă...
+```
+
+Integrarea se reîncarcă automat — nu este necesar un restart manual.
 
 ---
 
@@ -90,8 +120,14 @@ Apare la pornirea integrării când API-ul E·ON nu răspunde sau credențialele
 ### „Depășire de timp la conectarea cu API-ul E·ON"
 API-ul E·ON nu a răspuns în 30 de secunde. Poate fi o problemă temporară a serverului lor. Integrarea va reîncerca la următorul ciclu de actualizare.
 
-### Senzorul „Index curent" arată 0
+### Senzorul „Index gaz" / „Index energie electrică" arată 0
 E normal dacă nu ești în perioada de citire. Consultă [FAQ — Nu îmi apare indexul curent](./FAQ.md#nu-îmi-apare-indexul-curent-de-ce).
+
+### Senzori noi nu apar după ce a început perioada de citire
+Senzorii sunt creați la pornirea integrării. Dacă integrarea s-a pornit în afara perioadei de citire, senzorii de index și citire permisă există dar pot afișa date goale. Datele se vor actualiza automat în următorul ciclu de refresh. Dacă nu se actualizează, fă un reload al integrării din **Setări** → **Dispozitive și Servicii** → **E·ON România** → cele trei puncte → **Reîncarcă**.
+
+### „Autentificare eșuată la modificarea opțiunilor"
+Apare în OptionsFlow dacă ai modificat credențialele (username, parolă sau cod de încasare) și noile date sunt incorecte. Configurația existentă rămâne neschimbată — corectează datele și încearcă din nou.
 
 ---
 
