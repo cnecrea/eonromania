@@ -1,36 +1,40 @@
 {
-    "title": "E·ON Rumanía",
+    "title": "E·ON Rumania",
     "config": {
         "step": {
             "user": {
-                "title": "Configuración para E·ON Rumanía",
-                "description": "Ingrese los detalles de su cuenta para la autenticación.",
+                "title": "Configuración para E·ON Rumania",
+                "description": "Ingrese los detalles de su cuenta para iniciar sesión.",
                 "data": {
-                    "username": "Usuario",
+                    "username": "Nombre de usuario",
                     "password": "Contraseña",
-                    "cod_incasare": "Código de pago",
+                    "cod_incasare": "Código de cobro",
                     "update_interval": "Intervalo de actualización (segundos)"
                 }
             }
         },
         "error": {
-            "auth_failed": "La autenticación falló. Verifique sus credenciales.",
-            "connection_error": "Error de conexión. Por favor, inténtelo de nuevo más tarde.",
-            "invalid_cod_incasare": "El código de pago debe tener exactamente 12 dígitos."
+            "auth_failed": "Autenticación fallida. Verifique los datos ingresados.",
+            "connection_error": "Error de conexión. Inténtelo de nuevo más tarde.",
+            "invalid_cod_incasare": "El código de cobro debe tener exactamente 12 dígitos."
         }
     },
     "options": {
         "step": {
             "init": {
-                "title": "Modificar opciones para E·ON Rumanía",
-                "description": "Actualice los detalles de su cuenta y el intervalo de actualización.",
+                "title": "Modificar opciones para E·ON Rumania",
+                "description": "Actualice la información de la cuenta y el intervalo de actualización. Deje el campo de contraseña vacío para mantener la contraseña actual.",
                 "data": {
-                    "username": "Usuario",
-                    "password": "Contraseña",
-                    "cod_incasare": "Código de pago",
+                    "username": "Nombre de usuario",
+                    "password": "Nueva contraseña (vacío = mantener actual)",
+                    "cod_incasare": "Código de cobro",
                     "update_interval": "Intervalo de actualización (segundos)"
                 }
             }
+        },
+        "error": {
+            "auth_failed": "Autenticación fallida con las nuevas credenciales. Verifique los datos ingresados.",
+            "invalid_cod_incasare": "El código de cobro debe tener exactamente 12 dígitos."
         }
     }
 }
