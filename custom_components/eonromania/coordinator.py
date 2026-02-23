@@ -78,7 +78,6 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             raise UpdateFailed("Depășire de timp la actualizarea datelor E·ON.") from err
 
         except UpdateFailed:
-            # Mesajul de UpdateFailed e deja relevant; nu dublăm cu exception aici.
             raise
 
         except Exception as err:
@@ -98,6 +97,30 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(
                 "Nu s-au putut obține datele esențiale de la E·ON (dateuser + citireindex)."
             )
+
+        # Detectează unitatea de măsură din graficul de consum anual.
+        # "m3" = gaz, "kWh" = curent electric.
+        # Dacă câmpul lipsește din răspuns, fallback pe "m3".
+        um = "m3"
+        if isinstance(comparareanualagrafic_data, dict):
+            um_raw = comparareanualagrafic_data.get("um")
+            if um_raw:
+                um = um_raw.lower()  # normalizează: 'M3' -> 'm3', 'KWH' -> 'kwh'
+            else:
+                _LOGGER.debug(
+                    "Câmpul 'um' lipsește din comparareanualagrafic (contract=%s). "
+                    "Se folosește valoarea implicită: '%s'. "
+                    "Structura răspunsului: %s",
+                    cod_incasare,
+                    um,
+                    list(comparareanualagrafic_data.keys()),
+                )
+
+        _LOGGER.debug(
+            "Unitate de măsură detectată: '%s' (contract=%s).",
+            um,
+            cod_incasare,
+        )
 
         # Debug scurt, util: câte endpointuri au venit cu None
         none_count = sum(
@@ -130,4 +153,5 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             "payments": payments_data,
             "facturasold_prosum": facturasold_prosum_data,
             "facturasold_prosum_balance": facturasold_prosum_balance_data,
+            "um": um,
         }
