@@ -157,7 +157,7 @@ Integrarea folosește `has_entity_name = True`, ceea ce înseamnă că Home Assi
 - Dispozitiv: `E·ON România (001234567890)`
 - Senzor: `Date contract`
 - Numele afișat: `E·ON România (001234567890) Date contract`
-- Entity ID generat: `sensor.e_on_romania_001234567890_date_contract`
+- Entity ID generat: `sensor.eonromania_001234567890_date_contract`
 
 Acesta este comportamentul standard al Home Assistant și asigură unicitatea entităților, mai ales dacă ai mai multe coduri de încasare configurate.
 
@@ -187,7 +187,7 @@ alias: Notificare factură restantă E·ON
 description: Notificare dacă există facturi neachitate
 triggers:
   - trigger: state
-    entity_id: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta
+    entity_id: sensor.eonromania_00XXXXXXXXXX_factura_restanta
     to: "Da"
 actions:
   - action: notify.mobile_app_telefonul_meu
@@ -195,7 +195,7 @@ actions:
       title: "Factură restantă E·ON ⚡"
       message: >-
         Ai o factură neachitată.
-        Total: {{ state_attr('sensor.e_on_romania_00XXXXXXXXXX_factura_restanta', 'Total neachitat') }}
+        Total: {{ state_attr('sensor.eonromania_00XXXXXXXXXX_factura_restanta', 'Total neachitat') }}
 mode: single
 ```
 
@@ -206,15 +206,15 @@ Afișează datele principale pe interfața Home Assistant.
 type: entities
 title: E·ON România
 entities:
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_date_contract
+  - entity: sensor.eonromania_00XXXXXXXXXX_date_contract
     name: Date contract
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+  - entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     name: Index curent
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_citire_permisa
+  - entity: sensor.eonromania_00XXXXXXXXXX_citire_permisa
     name: Citire permisă
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta
+  - entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta
     name: Factură restantă
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta_prosumator
+  - entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta_prosumator
     name: Factură prosumator
 ```
 
