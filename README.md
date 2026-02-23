@@ -4,28 +4,28 @@
 
 Această integrare pentru Home Assistant oferă **monitorizare completă** a datelor contractuale și a indexurilor de consum pentru utilizatorii E-ON România. Integrarea este configurabilă prin interfața UI și permite afișarea datelor despre contract, citirea indexurilor curente, facturile restante (inclusiv prosumator) și arhivarea datelor istorice. 🚀
 
+Integrarea detectează automat tipul contractului (gaz sau energie electrică) și adaptează denumirile senzorilor, unitățile de măsură și entity ID-urile.
+
 ## 🌟 Caracteristici
 
-### Senzor `Arhivă consum`:
+### Senzor `Arhivă consum gaz` / `Arhivă consum energie electrică`:
 - **📚 Date istorice**:
-  - Afișează consumul total lunar în metri cubi.
+  - Afișează consumul total lunar (în m³ pentru gaz, kWh pentru energie electrică).
 - **📊 Atribute disponibile**:
-  - **An**: Anul pentru care se afișează datele.
-  - **Consum lunar**: Cantitatea de gaz consumată pentru fiecare lună, exprimată în metri cubi.
+  - **Consum lunar**: Cantitatea consumată pentru fiecare lună.
   - **Consum mediu zilnic**: Media zilnică a consumului pentru fiecare lună.
+- **🔄 Starea senzorului**: Consumul total anual (valoare numerică).
 
-### Senzor `Arhivă index`:
+### Senzor `Arhivă index gaz` / `Arhivă index energie electrică`:
 - **📚 Date istorice**:
   - Afișează indexurile lunare pentru fiecare an disponibil.
 - **📊 Atribute disponibile**:
-  - **An**: Anul pentru care se afișează datele.
   - **Indexuri lunare**: Indexurile consumului pentru fiecare lună, inclusiv metoda de citire (autocitire, estimare, citire distribuitor).
 
 ### Senzor `Arhivă plăți`:
 - **📚 Date istorice**:
   - Afișează plățile lunare pentru fiecare an disponibil.
 - **📊 Atribute disponibile**:
-  - **An**: Anul pentru care se afișează datele.
   - **Plăți lunare**: Totalul plăților efectuate pentru fiecare lună în anul selectat.
   - **Plăți efectuate**: Numărul total de plăți din anul respectiv.
   - **Sumă totală**: Suma anuală a tuturor plăților, afișată în format românesc (1.234,56 lei).
@@ -43,20 +43,12 @@ Această integrare pentru Home Assistant oferă **monitorizare completă** a dat
     - **Eroare**: Datele nu sunt disponibile sau a apărut o problemă.
 
 ### Senzor `Convenție consum`:
-- **📊 Gestionarea consumului lunar**: Afișează detalii despre convenția de consum pe luni, incluzând doar lunile cu valori mai mari de 0.
+- **📊 Gestionarea consumului lunar**: Afișează detalii despre convenția de consum pe luni.
 - **📄 Atribute disponibile**:
-  - **Valori lunare ale consumului**: Exemplu: `Convenție din luna ianuarie: 10 mc`.
-  - **Număr de luni configurate**: Totalul lunilor cu valori > 0.
-- **🔄 Starea senzorului**: Reprezintă numărul de luni configurate. Exemplu: `3` (pentru 3 luni configurate).
-- **🎯 Exemplu de afișare**:
-
-```text
-Stare principală: 3
-Atribute:
-  Convenție din luna ianuarie: 10 mc
-  Convenție din luna februarie: 5 mc
-  Convenție din luna martie: 15 mc
-```
+  - **Valori lunare ale consumului**: Exemplu: `Convenție din luna ianuarie: 10 m3` (sau kWh pentru energie electrică).
+- **🔄 Starea senzorului**:
+    - **Da**: Există cel puțin o lună configurată cu valori > 0.
+    - **Nu**: Nu există valori configurate sau datele nu sunt disponibile.
 
 ### Senzor `Date contract`:
   - **🔍 Monitorizare generală**:
@@ -106,9 +98,10 @@ Atribute:
     - **Nu**: Nu există datorii (poate exista credit).
 - **💡 Notă**: Dacă nu ești prosumator, senzorul va afișa **Nu** cu atributul „Nu există facturi disponibile" — este un comportament normal.
 
-### Senzor `Index curent`:
+### Senzor `Index gaz` / `Index energie electrică`:
   - **🔍 Monitorizare date index**:
       - Afișează informații detaliate despre indexul curent al contorului.
+      - Denumirea și entity ID-ul se adaptează automat în funcție de tipul contractului.
   - **📊 Atribute disponibile**:
       - **Numărul dispozitivului**: ID-ul dispozitivului asociat contorului.
       - **Numărul ID intern citire contor**: Identificatorul intern SAP.
@@ -125,13 +118,14 @@ Atribute:
       - **Poate fi modificat până la**: Data și ora până la care citirea poate fi modificată.
   - **💡 Notă**: Indexul curent apare doar în perioada de citire. În afara acestei perioade, API-ul E·ON nu publică date și senzorul nu va avea informații. Consultă [FAQ](./FAQ.md) pentru detalii.
 
-### Buton `Trimite index`:
+### Buton `Trimite index gaz`:
 - **🔘 Buton interactiv**:
     - Permite trimiterea indexului către API-ul E-ON România, utilizabil atât prin interfața Home Assistant, cât și prin automatizări.
 - **📊 Funcționalități**:
     - Determină valoarea indexului din entitatea `input_number.gas_meter_reading`.
     - Validează și trimite indexul folosind endpoint-ul API.
     - După trimitere, solicită automat actualizarea datelor din coordinator.
+- **⚠️ Prerequisite**: Trebuie să existe entitatea `input_number.gas_meter_reading` în configurația ta Home Assistant. Butonul nu va funcționa fără aceasta.
 
 
 ---
@@ -151,15 +145,30 @@ Atribute:
 - Verifică datele de autentificare înainte de salvare.
 - Asigură-te că formatul codului de încasare este corect pentru a evita problemele de conectare.
 - Dacă ai un cont DUO, consultă [FAQ — Am cont DUO](./FAQ.md#am-cont-duo-pot-folosi-integrarea) pentru a găsi codurile de încasare corecte.
+- **Modificarea opțiunilor** (credențiale, cod de încasare, interval de actualizare) din fluxul de opțiuni reîncarcă automat integrarea. Nu este necesar un restart manual.
+- **La modificarea credențialelor**, integrarea validează autentificarea înainte de a salva — nu riști să blochezi integrarea cu date greșite.
 
 ### 🏷️ Denumirea entităților:
-Integrarea folosește `has_entity_name = True`, ceea ce înseamnă că Home Assistant construiește automat numele complet al entității din **numele dispozitivului** + **numele senzorului**. De exemplu:
-- Dispozitiv: `E·ON România (001234567890)`
-- Senzor: `Date contract`
-- Numele afișat: `E·ON România (001234567890) Date contract`
-- Entity ID generat: `sensor.eonromania_001234567890_date_contract`
+Integrarea setează manual `entity_id`-ul fiecărei entități și adaptează automat denumirile în funcție de tipul contractului (gaz sau energie electrică).
 
-Acesta este comportamentul standard al Home Assistant și asigură unicitatea entităților, mai ales dacă ai mai multe coduri de încasare configurate.
+**Senzori care depind de tipul contractului:**
+
+| Senzor | Entity ID (gaz) | Entity ID (electricitate) |
+|---|---|---|
+| Index | `…_index_gaz` | `…_index_energie_electrica` |
+| Arhivă consum | `…_arhiva_consum_gaz_{an}` | `…_arhiva_consum_energie_electrica_{an}` |
+| Arhivă index | `…_arhiva_index_gaz_{an}` | `…_arhiva_index_energie_electrica_{an}` |
+
+**Senzori comuni (indiferent de tipul contractului):**
+- `sensor.eonromania_{cod}_date_contract`
+- `sensor.eonromania_{cod}_citire_permisa`
+- `sensor.eonromania_{cod}_conventie_consum`
+- `sensor.eonromania_{cod}_factura_restanta`
+- `sensor.eonromania_{cod}_factura_prosumator`
+- `sensor.eonromania_{cod}_arhiva_plati_{an}`
+- `button.eonromania_{cod}_trimite_index_gaz`
+
+> **Atenție:** Entity ID-urile exacte le poți verifica în **Setări** → **Dispozitive și Servicii** → **E·ON România** → click pe dispozitiv.
 
 ---
 
@@ -200,7 +209,7 @@ mode: single
 ```
 
 ### 🔍 Card pentru Dashboard:
-Afișează datele principale pe interfața Home Assistant.
+Afișează datele principale pe interfața Home Assistant. Exemplul de mai jos e pentru un contract de **gaz** — dacă ai energie electrică, înlocuiește `_index_gaz` cu `_index_energie_electrica`.
 
 ```yaml
 type: entities
@@ -208,13 +217,13 @@ title: E·ON România
 entities:
   - entity: sensor.eonromania_00XXXXXXXXXX_date_contract
     name: Date contract
-  - entity: sensor.eonromania_00XXXXXXXXXX_index_curent
-    name: Index curent
+  - entity: sensor.eonromania_00XXXXXXXXXX_index_gaz
+    name: Index gaz
   - entity: sensor.eonromania_00XXXXXXXXXX_citire_permisa
     name: Citire permisă
   - entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta
     name: Factură restantă
-  - entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta_prosumator
+  - entity: sensor.eonromania_00XXXXXXXXXX_factura_prosumator
     name: Factură prosumator
 ```
 
@@ -234,33 +243,24 @@ Mai multe exemple de carduri și automatizări găsești în [SETUP.md](./SETUP.
 
 # Întrebări frecvente
 
-Ai întrebări despre utilizarea sau configurarea integrării? Găsește răspunsuri la întrebări precum:
-
-- **Cum să adaug integrarea în Home Assistant?**
-- **Am cont DUO, pot folosi integrarea?**
-- **Ce înseamnă index curent?**
-- **Nu îmi apare indexul curent. De ce?**
-- **Nu îmi apare senzorul citire permisă. De ce?**
-- **Ce înseamnă senzorul „Factură restantă prosumator"?**
-- **Nu sunt prosumator. Senzorul de prosumator îmi afișează „Nu" — e normal?**
-- **Vreau să trimit indexul de la gaz de forma automată. De ce am nevoie?**
-- **Am instalat un cititor de contor gaz. Cum fac automatizarea?**
-
 Consultă fișierul [FAQ.md](./FAQ.md) pentru ghiduri detaliate și soluții pas cu pas! 😊
+
+---
+
+## ⚠️ Limitări cunoscute
+
+- **Senzorii sunt creați la pornire.** Dacă la momentul pornirii integrării nu ești în perioada de citire, senzorii de index și citire permisă sunt creați fără date de dispozitiv. Datele se populează automat când începe perioada de citire.
+- **Butonul „Trimite index gaz" necesită `input_number.gas_meter_reading`.** Această entitate trebuie creată manual; nu este generată de integrare.
 
 ---
 
 ## ☕ Susține dezvoltatorul
 
 Dacă ți-a plăcut această integrare și vrei să sprijini munca depusă, **invită-mă la o cafea**! 🫶  
-Nu costă nimic, iar contribuția ta ajută la dezvoltarea viitoare a proiectului. 🙌  
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Susține%20dezvoltatorul-orange?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/cnecrea)
 
-Mulțumesc pentru sprijin și apreciez fiecare gest de susținere! 🤗
-
 --- 
-
 
 ## 🧑‍💻 Contribuții
 
