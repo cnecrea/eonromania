@@ -19,44 +19,56 @@ class EonApiClient:
         self._password = password
         self._token: str | None = None
         self._timeout = ClientTimeout(total=API_TIMEOUT)
+        self._login_lock = asyncio.Lock()
+
+    @property
+    def has_token(self) -> bool:
+        """Verifică dacă există un token setat (nu garantează validitatea)."""
+        return self._token is not None
 
     async def async_login(self) -> bool:
-        """Obține un token nou de autentificare."""
-        payload = {
-            "username": self._username,
-            "password": self._password,
-            "rememberMe": False,
-        }
+        """Obține un token nou de autentificare (thread-safe cu lock)."""
+        async with self._login_lock:
+            # Double-check: dacă alt apel a obținut deja tokenul în timp ce așteptam lock-ul
+            if self._token is not None:
+                _LOGGER.debug("Token deja disponibil (obținut de alt apel concurent).")
+                return True
 
-        try:
-            async with self._session.post(
-                URLS["login"], json=payload, headers=HEADERS_POST, timeout=self._timeout
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    self._token = data.get("accessToken")
-                    _LOGGER.debug("Token obținut cu succes (autentificare reușită).")
-                    return True
+            payload = {
+                "username": self._username,
+                "password": self._password,
+                "rememberMe": False,
+            }
 
-                text = await resp.text()
+            try:
+                async with self._session.post(
+                    URLS["login"], json=payload, headers=HEADERS_POST, timeout=self._timeout
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        self._token = data.get("accessToken")
+                        _LOGGER.debug("Token obținut cu succes (autentificare reușită).")
+                        return True
+
+                    text = await resp.text()
+                    _LOGGER.error(
+                        "Eroare la autentificare. Cod HTTP=%s, Răspuns=%s",
+                        resp.status,
+                        text,
+                    )
+                    self._token = None
+                    return False
+
+            except asyncio.TimeoutError:
                 _LOGGER.error(
-                    "Eroare la autentificare. Cod HTTP=%s, Răspuns=%s",
-                    resp.status,
-                    text,
+                    "Depășire de timp la conectarea cu API-ul E·ON (autentificare)."
                 )
                 self._token = None
                 return False
-
-        except asyncio.TimeoutError:
-            _LOGGER.error(
-                "Depășire de timp la conectarea cu API-ul E·ON (autentificare)."
-            )
-            self._token = None
-            return False
-        except Exception as e:
-            _LOGGER.error("Eroare la conectarea cu API-ul E·ON (autentificare): %s", e)
-            self._token = None
-            return False
+            except Exception as e:
+                _LOGGER.error("Eroare la conectarea cu API-ul E·ON (autentificare): %s", e)
+                self._token = None
+                return False
 
     async def async_fetch_dateuser_data(self, cod_incasare: str):
         """Obține datele utilizatorului (contract)."""
@@ -301,9 +313,28 @@ class EonApiClient:
                     )
                     self._token = None
                     if await self.async_login():
-                        return await self.async_trimite_index(
-                            account_contract, ablbelnr, index_value
-                        )
+                        # A doua încercare — fără recursie, direct
+                        headers_retry = {**HEADERS_POST, "Authorization": f"Bearer {self._token}"}
+                        async with self._session.post(
+                            URLS["trimite_index"],
+                            json=payload,
+                            headers=headers_retry,
+                            timeout=self._timeout,
+                        ) as resp_retry:
+                            if resp_retry.status == 200:
+                                _LOGGER.debug(
+                                    "Index trimis cu succes (după reautentificare) pentru contractul %s.",
+                                    account_contract,
+                                )
+                                return await resp_retry.json()
+                            response_text = await resp_retry.text()
+                            _LOGGER.error(
+                                "Reîncercarea trimiterii indexului a eșuat. Cod HTTP=%s, Răspuns=%s",
+                                resp_retry.status,
+                                response_text,
+                            )
+                            return None
+
                     _LOGGER.error(
                         "Reautentificare eșuată. Indexul nu a putut fi trimis."
                     )
