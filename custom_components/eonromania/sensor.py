@@ -67,19 +67,28 @@ def format_ron(value: float) -> str:
 class EonRomaniaEntity(CoordinatorEntity[EonRomaniaCoordinator], SensorEntity):
     """Clasă de bază pentru entitățile E·ON România."""
 
-    _attr_has_entity_name = True
+    _attr_has_entity_name = False
 
     def __init__(self, coordinator: EonRomaniaCoordinator, config_entry: ConfigEntry):
         """Inițializare cu coordinator și config_entry."""
         super().__init__(coordinator)
         self._config_entry = config_entry
         self._cod_incasare = config_entry.data["cod_incasare"]
+        self._custom_entity_id: str | None = None
+
+    @property
+    def entity_id(self) -> str | None:
+        """Returnează ID-ul entității."""
+        return self._custom_entity_id
+
+    @entity_id.setter
+    def entity_id(self, value: str) -> None:
+        """Setează ID-ul entității."""
+        self._custom_entity_id = value
 
     @property
     def device_info(self) -> DeviceInfo:
         """Returnează informațiile despre dispozitiv — comun tuturor entităților."""
-        # IMPORTANT: NU include adresa în numele device-ului.
-        # Dacă incluzi adresa aici, Home Assistant îți va lungi entity_id-urile.
         return DeviceInfo(
             identifiers={(DOMAIN, self._cod_incasare)},
             name=f"E·ON România ({self._cod_incasare})",
@@ -239,8 +248,9 @@ class DateContractSensor(EonRomaniaEntity):
 
     def __init__(self, coordinator, config_entry):
         super().__init__(coordinator, config_entry)
-        self._attr_unique_id = f"{DOMAIN}_date_contract_{config_entry.entry_id}"
         self._attr_name = "Date contract"
+        self._attr_unique_id = f"{DOMAIN}_date_contract_{config_entry.entry_id}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_date_contract"
 
     @property
     def native_value(self):
@@ -302,10 +312,9 @@ class CitireIndexSensor(EonRomaniaEntity):
         super().__init__(coordinator, config_entry)
         self.device_number = device_number
 
-        # IMPORTANT: unique_id trebuie să fie unic pe device_number
-        suffix = str(device_number) if device_number is not None else "none"
-        self._attr_unique_id = f"{DOMAIN}_index_curent_{config_entry.entry_id}_{suffix}"
         self._attr_name = "Index curent"
+        self._attr_unique_id = f"{DOMAIN}_index_curent_{config_entry.entry_id}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_index_curent"
 
     @property
     def native_value(self):
@@ -410,10 +419,9 @@ class CitirePermisaSensor(EonRomaniaEntity):
         super().__init__(coordinator, config_entry)
         self.device_number = device_number
 
-        # IMPORTANT: unique_id trebuie să fie unic pe device_number
-        suffix = str(device_number) if device_number is not None else "none"
-        self._attr_unique_id = f"{DOMAIN}_citire_permisa_{config_entry.entry_id}_{suffix}"
         self._attr_name = "Citire permisă"
+        self._attr_unique_id = f"{DOMAIN}_citire_permisa_{config_entry.entry_id}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_citire_permisa"
 
     @property
     def native_value(self):
@@ -509,8 +517,9 @@ class FacturaRestantaSensor(EonRomaniaEntity):
 
     def __init__(self, coordinator, config_entry):
         super().__init__(coordinator, config_entry)
-        self._attr_unique_id = f"{DOMAIN}_factura_restanta_{config_entry.entry_id}"
         self._attr_name = "Factură restantă"
+        self._attr_unique_id = f"{DOMAIN}_factura_restanta_{config_entry.entry_id}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_factura_restanta"
 
     @property
     def native_value(self):
@@ -580,8 +589,6 @@ class FacturaRestantaSensor(EonRomaniaEntity):
         return attributes
 
 
-
-
 # ------------------------------------------------------------------------
 # FacturaProsumSensor
 # ------------------------------------------------------------------------
@@ -593,22 +600,20 @@ class FacturaProsumSensor(EonRomaniaEntity):
 
     def __init__(self, coordinator, config_entry):
         super().__init__(coordinator, config_entry)
-        self._attr_unique_id = f"{DOMAIN}_factura_prosum_{config_entry.entry_id}"
         self._attr_name = "Factură restantă prosumator"
+        self._attr_unique_id = f"{DOMAIN}_factura_prosum_{config_entry.entry_id}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_factura_prosum"
 
     @property
     def native_value(self):
         """Returnează starea principală (Da/Nu)."""
         data = self.coordinator.data.get("facturasold_prosum") if self.coordinator.data else None
         if not data or not isinstance(data, list):
-            # Dacă lista de facturi nu există, verificăm balance-ul
             balance_data = self.coordinator.data.get("facturasold_prosum_balance") if self.coordinator.data else None
             if balance_data and isinstance(balance_data, dict):
                 balance = float(balance_data.get("balance", 0))
-                # Pentru prosumatori, balance pozitiv = datorie, balance negativ = credit
                 return "Da" if balance > 0 else "Nu"
             return "Nu"
-        # Verificăm dacă există cel puțin o factură cu valoare pozitivă (datorie)
         return "Da" if any(float(item.get("issuedValue", 0)) > 0 for item in data) else "Nu"
 
     @property
@@ -630,7 +635,6 @@ class FacturaProsumSensor(EonRomaniaEntity):
             issued_value = float(item.get("issuedValue", 0))
             balance_value = float(item.get("balanceValue", 0))
 
-            # Determinăm valoarea care trebuie afișată
             display_value = issued_value if issued_value == balance_value else balance_value
 
             raw_date = item.get("maturityDate", "Necunoscut")
@@ -643,7 +647,6 @@ class FacturaProsumSensor(EonRomaniaEntity):
                 month_name_ro = MONTHS_EN_RO.get(month_name_en, "necunoscut")
 
                 if display_value > 0:
-                    # Datorie (valoare pozitivă)
                     total_sold += display_value
                     days_until_due = (parsed_date - datetime.now()).days
                     if days_until_due < 0:
@@ -665,7 +668,6 @@ class FacturaProsumSensor(EonRomaniaEntity):
                         )
                     attributes[f"Factură {idx} ({invoice_number})"] = msg
                 elif display_value < 0:
-                    # Credit (valoare negativă — prosumatorul a produs mai mult)
                     total_credit += abs(display_value)
                     msg = (
                         f"Credit de {format_ron(abs(display_value))} lei pentru {invoice_type.lower()} "
@@ -673,7 +675,6 @@ class FacturaProsumSensor(EonRomaniaEntity):
                     )
                     attributes[f"Credit {idx} ({invoice_number})"] = msg
                 else:
-                    # Valoare zero
                     attributes[f"Factură {idx} ({invoice_number})"] = f"Fără sold (scadentă {raw_date})"
 
             except ValueError:
@@ -686,7 +687,6 @@ class FacturaProsumSensor(EonRomaniaEntity):
                         f"Credit de {format_ron(abs(display_value))} lei (data necunoscută)"
                     )
 
-        # Adăugăm informații despre balance-ul de prosumator dacă există
         balance_data = self.coordinator.data.get("facturasold_prosum_balance") if self.coordinator.data else None
         if balance_data and isinstance(balance_data, dict):
             balance = float(balance_data.get("balance", 0))
@@ -727,8 +727,9 @@ class ConventieConsumSensor(EonRomaniaEntity):
 
     def __init__(self, coordinator, config_entry):
         super().__init__(coordinator, config_entry)
-        self._attr_unique_id = f"{DOMAIN}_conventie_consum_{config_entry.entry_id}"
         self._attr_name = "Convenție consum"
+        self._attr_unique_id = f"{DOMAIN}_conventie_consum_{config_entry.entry_id}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_conventie_consum"
 
     @property
     def native_value(self):
@@ -792,8 +793,9 @@ class ArhivaSensor(EonRomaniaEntity):
     def __init__(self, coordinator, config_entry, year):
         super().__init__(coordinator, config_entry)
         self.year = year
-        self._attr_unique_id = f"{DOMAIN}_arhiva_index_{config_entry.entry_id}_{year}"
         self._attr_name = f"Arhivă index · {year}"
+        self._attr_unique_id = f"{DOMAIN}_arhiva_index_{config_entry.entry_id}_{year}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_index_{year}"
 
     @property
     def native_value(self):
@@ -861,8 +863,9 @@ class ArhivaPlatiSensor(EonRomaniaEntity):
     def __init__(self, coordinator, config_entry, year):
         super().__init__(coordinator, config_entry)
         self.year = year
-        self._attr_unique_id = f"{DOMAIN}_arhiva_plati_{config_entry.entry_id}_{year}"
         self._attr_name = f"Arhivă plăți · {year}"
+        self._attr_unique_id = f"{DOMAIN}_arhiva_plati_{config_entry.entry_id}_{year}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_plati_{year}"
 
     @property
     def native_value(self):
@@ -920,8 +923,9 @@ class ArhivaComparareConsumAnualGraficSensor(EonRomaniaEntity):
         super().__init__(coordinator, config_entry)
         self._year = year
         self._monthly_values = monthly_values
-        self._attr_unique_id = f"{DOMAIN}_arhiva_consum_{config_entry.entry_id}_{year}"
         self._attr_name = f"Arhivă consum · {year}"
+        self._attr_unique_id = f"{DOMAIN}_arhiva_consum_{config_entry.entry_id}_{year}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_consum_{year}"
 
     @property
     def native_value(self):
