@@ -3,34 +3,38 @@
     "config": {
         "step": {
             "user": {
-                "title": "Configuration for E·ON Romania",
-                "description": "Enter your account details for authentication.",
+                "title": "Setup for E·ON Romania",
+                "description": "Enter your account details to log in.",
                 "data": {
                     "username": "Username",
                     "password": "Password",
-                    "cod_incasare": "Payment code",
-                    "update_interval": "Update interval (seconds)"
+                    "cod_incasare": "Collection Code",
+                    "update_interval": "Update Interval (seconds)"
                 }
             }
         },
         "error": {
-            "auth_failed": "Authentication failed. Please check your credentials.",
+            "auth_failed": "Authentication failed. Please check your entered details.",
             "connection_error": "Connection error. Please try again later.",
-            "invalid_cod_incasare": "The payment code must be exactly 12 digits."
+            "invalid_cod_incasare": "The collection code must be exactly 12 digits."
         }
     },
     "options": {
         "step": {
             "init": {
-                "title": "Modify Options for E·ON Romania",
-                "description": "Update your account details and update interval.",
+                "title": "Edit Options for E·ON Romania",
+                "description": "Update account information and the update interval. Leave the password field empty to keep the current password.",
                 "data": {
                     "username": "Username",
-                    "password": "Password",
-                    "cod_incasare": "Payment code",
-                    "update_interval": "Update interval (seconds)"
+                    "password": "New password (empty = keep current)",
+                    "cod_incasare": "Collection Code",
+                    "update_interval": "Update Interval (seconds)"
                 }
             }
+        },
+        "error": {
+            "auth_failed": "Authentication failed with the new credentials. Please check your entered details.",
+            "invalid_cod_incasare": "The collection code must be exactly 12 digits."
         }
     }
 }
