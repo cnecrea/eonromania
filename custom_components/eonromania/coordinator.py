@@ -39,14 +39,17 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         _LOGGER.debug("Începe actualizarea datelor E·ON (contract=%s).", cod_incasare)
 
         try:
-            # Un singur login înainte de toate apelurile,
-            # ca să nu facă fiecare apel login separat în paralel.
-            ok = await self.api_client.async_login()
-            if not ok:
-                _LOGGER.warning(
-                    "Autentificare eșuată la API-ul E·ON (contract=%s).", cod_incasare
-                )
-                raise UpdateFailed("Nu s-a putut autentifica la API-ul E·ON.")
+            # Asigurăm un token valid DOAR dacă nu avem unul.
+            # Dacă tokenul e expirat (401), fiecare metodă din api_client
+            # gestionează reautentificarea individual, protejată de lock.
+            # Astfel evităm un login forțat la fiecare ciclu de refresh.
+            if not self.api_client.has_token:
+                ok = await self.api_client.async_login()
+                if not ok:
+                    _LOGGER.warning(
+                        "Autentificare eșuată la API-ul E·ON (contract=%s).", cod_incasare
+                    )
+                    raise UpdateFailed("Nu s-a putut autentifica la API-ul E·ON.")
 
             (
                 dateuser_data,
