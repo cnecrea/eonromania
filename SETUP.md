@@ -14,19 +14,19 @@ Un card simplu care afișează toți senzorii principali într-o singură listă
 type: entities
 title: E·ON România
 entities:
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_date_contract
+  - entity: sensor.eonromania_00XXXXXXXXXX_date_contract
     name: Date contract
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+  - entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     name: Index curent
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_citire_permisa
+  - entity: sensor.eonromania_00XXXXXXXXXX_citire_permisa
     name: Citire permisă
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_conventie_consum
+  - entity: sensor.eonromania_00XXXXXXXXXX_conventie_consum
     name: Convenție consum
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta
+  - entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta
     name: Factură restantă
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta_prosumator
+  - entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta_prosumator
     name: Factură prosumator
-  - entity: button.e_on_romania_00XXXXXXXXXX_trimite_index
+  - entity: button.eonromania_00XXXXXXXXXX_trimite_index
     name: Trimite index
 ```
 
@@ -40,50 +40,50 @@ Afișează toate atributele disponibile pentru indexul curent. Util în perioada
 type: entities
 title: Index curent — Detalii
 entities:
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+  - entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     name: Valoare index
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+    entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     attribute: Numărul dispozitivului
     name: Numărul dispozitivului
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+    entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     attribute: Tipul citirii curente
     name: Tipul citirii
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+    entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     attribute: Data de începere a următoarei citiri
     name: Începutul perioadei de citire
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+    entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     attribute: Data de final a citirii
     name: Sfârșitul perioadei de citire
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+    entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     attribute: Autorizat să citească contorul
     name: Citire permisă
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+    entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     attribute: Permite modificarea citirii
     name: Permite modificare
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+    entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     attribute: Citire anterioară
     name: Citire anterioară
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+    entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     attribute: Ultima citire validată
     name: Ultima citire validată
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+    entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     attribute: Index propus pentru facturare
     name: Index propus
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+    entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     attribute: Trimis la
     name: Data trimiterii
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_index_curent
+    entity: sensor.eonromania_00XXXXXXXXXX_index_curent
     attribute: Poate fi modificat până la
     name: Termen modificare
 ```
@@ -99,35 +99,35 @@ type: entities
 title: Detalii contract E·ON
 entities:
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_date_contract
+    entity: sensor.eonromania_00XXXXXXXXXX_date_contract
     attribute: Cod încasare
     name: Cod încasare
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_date_contract
+    entity: sensor.eonromania_00XXXXXXXXXX_date_contract
     attribute: Cod loc de consum (NLC)
     name: Cod NLC
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_date_contract
+    entity: sensor.eonromania_00XXXXXXXXXX_date_contract
     attribute: Operator de Distribuție (OD)
     name: Operator distribuție
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_date_contract
+    entity: sensor.eonromania_00XXXXXXXXXX_date_contract
     attribute: Preț final (cu TVA)
     name: Preț final (cu TVA)
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_date_contract
+    entity: sensor.eonromania_00XXXXXXXXXX_date_contract
     attribute: Preț furnizare
     name: Preț furnizare
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_date_contract
+    entity: sensor.eonromania_00XXXXXXXXXX_date_contract
     attribute: Adresă consum
     name: Adresa
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_date_contract
+    entity: sensor.eonromania_00XXXXXXXXXX_date_contract
     attribute: Următoarea verificare a instalației
     name: Verificare instalație
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_date_contract
+    entity: sensor.eonromania_00XXXXXXXXXX_date_contract
     attribute: Următoarea revizie tehnică
     name: Revizie tehnică
 ```
@@ -142,10 +142,10 @@ Afișează starea plăților și detaliile facturilor:
 type: entities
 title: Facturi restante
 entities:
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta
+  - entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta
     name: Factură restantă
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta
+    entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta
     attribute: Total neachitat
     name: Total neachitat
 ```
@@ -160,18 +160,18 @@ Pentru utilizatorii cu contract de prosumator:
 type: entities
 title: Prosumator
 entities:
-  - entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta_prosumator
+  - entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta_prosumator
     name: Factură prosumator
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta_prosumator
+    entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta_prosumator
     attribute: Total neachitat
     name: Total neachitat
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta_prosumator
+    entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta_prosumator
     attribute: Total credit
     name: Total credit
   - type: attribute
-    entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta_prosumator
+    entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta_prosumator
     attribute: Sold total prosumator
     name: Sold prosumator
 ```
@@ -192,10 +192,10 @@ cards:
     entities:
       - entity: input_number.gas_meter_reading
         name: Index de trimis
-      - entity: sensor.e_on_romania_00XXXXXXXXXX_citire_permisa
+      - entity: sensor.eonromania_00XXXXXXXXXX_citire_permisa
         name: Citire permisă
   - type: button
-    entity: button.e_on_romania_00XXXXXXXXXX_trimite_index
+    entity: button.eonromania_00XXXXXXXXXX_trimite_index
     name: Trimite indexul
     icon: mdi:send
     tap_action:
@@ -214,14 +214,14 @@ Afișează un card de alertă doar când ai facturi neachitate:
 type: conditional
 conditions:
   - condition: state
-    entity: sensor.e_on_romania_00XXXXXXXXXX_factura_restanta
+    entity: sensor.eonromania_00XXXXXXXXXX_factura_restanta
     state: "Da"
 card:
   type: markdown
   content: >-
     ## ⚠️ Ai factură restantă!
 
-    **Total neachitat:** {{ state_attr('sensor.e_on_romania_00XXXXXXXXXX_factura_restanta', 'Total neachitat') }}
+    **Total neachitat:** {{ state_attr('sensor.eonromania_00XXXXXXXXXX_factura_restanta', 'Total neachitat') }}
 
     Verifică detaliile în secțiunea Facturi din dashboard.
 ```
@@ -231,6 +231,6 @@ card:
 ## Observații generale
 
 - **Înlocuiește `00XXXXXXXXXX`** cu codul tău real de încasare (12 cifre) în toate exemplele de mai sus.
-- **Entity_id-urile sunt generate automat** de Home Assistant din numele dispozitivului + numele senzorului. Formatul tipic este: `sensor.e_on_romania_{cod_incasare}_{nume_senzor}`.
+- **Entity_id-urile sunt generate automat** de Home Assistant din numele dispozitivului + numele senzorului. Formatul tipic este: `sensor.eonromania_{cod_incasare}_{nume_senzor}`.
 - **Atributele apar doar când E·ON furnizează datele.** Dacă un atribut nu e vizibil, înseamnă că API-ul nu a returnat acea informație — nu e o eroare.
 - Dacă întâmpini probleme, consultă [DEBUG.md](./DEBUG.md) pentru activarea logării detaliate.
