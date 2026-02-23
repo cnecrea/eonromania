@@ -2,11 +2,17 @@
 
 import asyncio
 import logging
+import time
 from aiohttp import ClientSession, ClientTimeout
 
 from .const import API_TIMEOUT, HEADERS_POST, URLS
 
 _LOGGER = logging.getLogger(__name__)
+
+# Durata maximă (în secunde) cât considerăm tokenul valid.
+# E·ON pare să expire tokenul la ~1 oră.
+# Folosim o marjă de siguranță de 5 minute (3600 - 300 = 3300).
+TOKEN_MAX_AGE = 3300
 
 
 class EonApiClient:
@@ -18,6 +24,7 @@ class EonApiClient:
         self._username = username
         self._password = password
         self._token: str | None = None
+        self._token_obtained_at: float = 0.0
         self._timeout = ClientTimeout(total=API_TIMEOUT)
         self._login_lock = asyncio.Lock()
 
@@ -26,11 +33,19 @@ class EonApiClient:
         """Verifică dacă există un token setat (nu garantează validitatea)."""
         return self._token is not None
 
+    def is_token_likely_valid(self) -> bool:
+        """Verifică dacă tokenul există ȘI nu a depășit durata maximă estimată."""
+        if self._token is None:
+            return False
+        age = time.monotonic() - self._token_obtained_at
+        return age < TOKEN_MAX_AGE
+
     async def async_login(self) -> bool:
         """Obține un token nou de autentificare (thread-safe cu lock)."""
         async with self._login_lock:
-            # Double-check: dacă alt apel a obținut deja tokenul în timp ce așteptam lock-ul
-            if self._token is not None:
+            # Double-check: dacă alt apel a obținut deja un token proaspăt
+            # în timp ce așteptam lock-ul, nu mai facem login inutil.
+            if self._token is not None and self.is_token_likely_valid():
                 _LOGGER.debug("Token deja disponibil (obținut de alt apel concurent).")
                 return True
 
@@ -47,6 +62,7 @@ class EonApiClient:
                     if resp.status == 200:
                         data = await resp.json()
                         self._token = data.get("accessToken")
+                        self._token_obtained_at = time.monotonic()
                         _LOGGER.debug("Token obținut cu succes (autentificare reușită).")
                         return True
 
@@ -57,6 +73,7 @@ class EonApiClient:
                         text,
                     )
                     self._token = None
+                    self._token_obtained_at = 0.0
                     return False
 
             except asyncio.TimeoutError:
@@ -64,11 +81,18 @@ class EonApiClient:
                     "Depășire de timp la conectarea cu API-ul E·ON (autentificare)."
                 )
                 self._token = None
+                self._token_obtained_at = 0.0
                 return False
             except Exception as e:
                 _LOGGER.error("Eroare la conectarea cu API-ul E·ON (autentificare): %s", e)
                 self._token = None
+                self._token_obtained_at = 0.0
                 return False
+
+    def invalidate_token(self) -> None:
+        """Invalidează tokenul curent (pentru a forța re-autentificare)."""
+        self._token = None
+        self._token_obtained_at = 0.0
 
     async def async_fetch_dateuser_data(self, cod_incasare: str):
         """Obține datele utilizatorului (contract)."""
@@ -166,7 +190,7 @@ class EonApiClient:
                             "Se reîncearcă autentificarea...",
                             page,
                         )
-                        self._token = None
+                        self.invalidate_token()
                         if await self.async_login():
                             retried = True
                             continue
@@ -247,7 +271,7 @@ class EonApiClient:
                             "Se reîncearcă autentificarea...",
                             page,
                         )
-                        self._token = None
+                        self.invalidate_token()
                         if await self.async_login():
                             retried = True
                             continue
@@ -311,7 +335,7 @@ class EonApiClient:
                         "Token invalid la trimiterea indexului. "
                         "Se reîncearcă autentificarea și retrimiterea..."
                     )
-                    self._token = None
+                    self.invalidate_token()
                     if await self.async_login():
                         # A doua încercare — fără recursie, direct
                         headers_retry = {**HEADERS_POST, "Authorization": f"Bearer {self._token}"}
@@ -383,7 +407,7 @@ class EonApiClient:
         _LOGGER.warning(
             "%s Cod HTTP=401 -> se reîncearcă autentificarea și apoi cererea.", on_error
         )
-        self._token = None
+        self.invalidate_token()
         if not await self.async_login():
             return None
 
