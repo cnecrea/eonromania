@@ -175,7 +175,7 @@ actions:
         sequence:
           - action: button.press
             target:
-              entity_id: button.e_on_romania_00XXXXXXXXXX_trimite_index
+              entity_id: button.eonromania_00XXXXXXXXXX_trimite_index
 ```
 
 **Ce face:**
