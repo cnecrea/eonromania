@@ -102,6 +102,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: EonRomaniaConfigEntry):
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Listener pentru modificarea opțiunilor în timp real (fără restart)
+    entry.async_on_unload(entry.add_update_listener(_async_update_options))
+
     _LOGGER.info(
         "Integrarea %s este configurată (entry_id=%s, contract=%s).",
         DOMAIN,
@@ -109,6 +112,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: EonRomaniaConfigEntry):
         cod_incasare,
     )
     return True
+
+
+async def _async_update_options(hass: HomeAssistant, entry: EonRomaniaConfigEntry):
+    """Reîncarcă integrarea când opțiunile se schimbă."""
+    _LOGGER.info(
+        "Opțiunile integrării %s s-au schimbat (entry_id=%s). Se reîncarcă...",
+        DOMAIN,
+        entry.entry_id,
+    )
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: EonRomaniaConfigEntry):
