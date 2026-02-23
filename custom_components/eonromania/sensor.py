@@ -306,16 +306,22 @@ class DateContractSensor(EonRomaniaEntity):
 class CitireIndexSensor(EonRomaniaEntity):
     """Senzor pentru afișarea datelor despre indexul curent."""
 
-    _attr_icon = "mdi:gauge"
-    _attr_translation_key = "index_curent"
-
     def __init__(self, coordinator, config_entry, device_number):
         super().__init__(coordinator, config_entry)
         self.device_number = device_number
 
-        self._attr_name = "Index curent"
+        um = coordinator.data.get("um", "m3") if coordinator.data else "m3"
+        is_gaz = um.lower().startswith("m")
+
+        self._attr_name = "Index gaz" if is_gaz else "Index energie electrică"
+        self._attr_icon = "mdi:gauge" if is_gaz else "mdi:lightning-bolt"
+        self._attr_translation_key = "index_gaz" if is_gaz else "index_energie_electrica"
         self._attr_unique_id = f"{DOMAIN}_index_curent_{config_entry.entry_id}"
-        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_index_curent"
+        self._custom_entity_id = (
+            f"sensor.{DOMAIN}_{self._cod_incasare}_index_gaz"
+            if is_gaz
+            else f"sensor.{DOMAIN}_{self._cod_incasare}_index_energie_electrica"
+        )
 
     @property
     def native_unit_of_measurement(self) -> str:
@@ -741,7 +747,7 @@ class ConventieConsumSensor(EonRomaniaEntity):
         """Returnează starea senzorului."""
         data = self.coordinator.data.get("conventieconsum") if self.coordinator.data else None
         if not data or not isinstance(data, list) or len(data) == 0:
-            return None
+            return "Nu"
 
         convention_line = data[0].get("conventionLine", {})
 
@@ -751,7 +757,7 @@ class ConventieConsumSensor(EonRomaniaEntity):
             if key.startswith("valueMonth") and convention_line.get(key, 0) > 0
         )
 
-        return months_with_values
+        return "Da" if months_with_values > 0 else "Nu"
 
     @property
     def extra_state_attributes(self):
@@ -761,6 +767,10 @@ class ConventieConsumSensor(EonRomaniaEntity):
             return {}
 
         convention_line = data[0].get("conventionLine", {})
+
+        um = self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
+        is_gaz = um.lower().startswith("m")
+        unit = "m3" if is_gaz else "kWh"
 
         month_mapping = {
             "valueMonth1": "ianuarie",
@@ -778,7 +788,7 @@ class ConventieConsumSensor(EonRomaniaEntity):
         }
 
         attributes = {
-            f"Convenție din luna {month}": f"{convention_line.get(key, 0)} mc"
+            f"Convenție din luna {month}": f"{convention_line.get(key, 0)} {unit}"
             for key, month in month_mapping.items()
         }
 
@@ -792,15 +802,22 @@ class ConventieConsumSensor(EonRomaniaEntity):
 class ArhivaSensor(EonRomaniaEntity):
     """Senzor pentru afișarea datelor istorice ale consumului."""
 
-    _attr_icon = "mdi:clipboard-text-clock"
-    _attr_translation_key = "arhiva_index"
-
     def __init__(self, coordinator, config_entry, year):
         super().__init__(coordinator, config_entry)
         self.year = year
-        self._attr_name = f"Arhivă index · {year}"
+
+        um = coordinator.data.get("um", "m3") if coordinator.data else "m3"
+        is_gaz = um.lower().startswith("m")
+
+        self._attr_name = f"Arhivă index gaz ({year})" if is_gaz else f"Arhivă index energie electrică ({year})"
+        self._attr_icon = "mdi:clipboard-text-clock" if is_gaz else "mdi:clipboard-text-clock-outline"
+        self._attr_translation_key = "arhiva_index_gaz" if is_gaz else "arhiva_index_energie_electrica"
         self._attr_unique_id = f"{DOMAIN}_arhiva_index_{config_entry.entry_id}_{year}"
-        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_index_{year}"
+        self._custom_entity_id = (
+            f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_index_gaz_{year}"
+            if is_gaz
+            else f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_index_energie_electrica_{year}"
+        )
 
     @property
     def native_value(self):
@@ -868,7 +885,7 @@ class ArhivaPlatiSensor(EonRomaniaEntity):
     def __init__(self, coordinator, config_entry, year):
         super().__init__(coordinator, config_entry)
         self.year = year
-        self._attr_name = f"Arhivă plăți · {year}"
+        self._attr_name = f"Arhivă plăți ({year})"
         self._attr_unique_id = f"{DOMAIN}_arhiva_plati_{config_entry.entry_id}_{year}"
         self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_plati_{year}"
 
@@ -921,16 +938,23 @@ class ArhivaPlatiSensor(EonRomaniaEntity):
 class ArhivaComparareConsumAnualGraficSensor(EonRomaniaEntity):
     """Senzor pentru afișarea datelor istorice ale consumului."""
 
-    _attr_icon = "mdi:chart-bar"
-    _attr_translation_key = "arhiva_consum"
-
     def __init__(self, coordinator, config_entry, year, monthly_values):
         super().__init__(coordinator, config_entry)
         self._year = year
         self._monthly_values = monthly_values
-        self._attr_name = f"Arhivă consum · {year}"
+
+        um = coordinator.data.get("um", "m3") if coordinator.data else "m3"
+        is_gaz = um.lower().startswith("m")
+
+        self._attr_name = f"Arhivă consum gaz ({year})" if is_gaz else f"Arhivă consum energie electrică ({year})"
+        self._attr_icon = "mdi:chart-bar" if is_gaz else "mdi:lightning-bolt"
+        self._attr_translation_key = "arhiva_consum_gaz" if is_gaz else "arhiva_consum_energie_electrica"
         self._attr_unique_id = f"{DOMAIN}_arhiva_consum_{config_entry.entry_id}_{year}"
-        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_consum_{year}"
+        self._custom_entity_id = (
+            f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_consum_gaz_{year}"
+            if is_gaz
+            else f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_consum_energie_electrica_{year}"
+        )
 
     @property
     def native_value(self):
