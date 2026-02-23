@@ -23,14 +23,18 @@
         "step": {
             "init": {
                 "title": "Modificați opțiunile pentru E·ON România",
-                "description": "Actualizați informațiile contului și intervalul de actualizare.",
+                "description": "Actualizați informațiile contului și intervalul de actualizare. Lăsați câmpul de parolă gol pentru a păstra parola existentă.",
                 "data": {
                     "username": "Nume de utilizator",
-                    "password": "Parolă",
+                    "password": "Parolă nouă (gol = păstrează actuala)",
                     "cod_incasare": "Cod de încasare",
                     "update_interval": "Interval de actualizare (secunde)"
                 }
             }
+        },
+        "error": {
+            "auth_failed": "Autentificare eșuată cu noile credențiale. Verificați datele introduse.",
+            "invalid_cod_incasare": "Codul de încasare trebuie să aibă exact 12 cifre."
         }
     }
 }
