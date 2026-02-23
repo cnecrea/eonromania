@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.const import UnitOfVolume, UnitOfEnergy
 
 from .const import DOMAIN, ATTRIBUTION
 from .coordinator import EonRomaniaCoordinator
@@ -317,6 +318,11 @@ class CitireIndexSensor(EonRomaniaEntity):
         self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_index_curent"
 
     @property
+    def native_unit_of_measurement(self) -> str:
+        um = self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
+        return UnitOfVolume.CUBIC_METERS if um.lower().startswith("m") else UnitOfEnergy.KILO_WATT_HOUR
+
+    @property
     def native_value(self):
         """Returnează starea senzorului."""
         citireindex_data = self.coordinator.data.get("citireindex") if self.coordinator.data else None
@@ -405,7 +411,6 @@ class CitireIndexSensor(EonRomaniaEntity):
                 return attributes
 
         return {}
-
 
 # ------------------------------------------------------------------------
 # CitirePermisaSensor
