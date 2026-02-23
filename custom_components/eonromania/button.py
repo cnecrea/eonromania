@@ -34,7 +34,7 @@ async def async_setup_entry(
 class TrimiteIndexButton(CoordinatorEntity[EonRomaniaCoordinator], ButtonEntity):
     """Buton pentru trimiterea indexului."""
 
-    _attr_has_entity_name = True
+    _attr_has_entity_name = False
     _attr_icon = "mdi:counter"
     _attr_translation_key = "trimite_index"
 
@@ -43,26 +43,23 @@ class TrimiteIndexButton(CoordinatorEntity[EonRomaniaCoordinator], ButtonEntity)
         super().__init__(coordinator)
         self._config_entry = config_entry
         self._cod_incasare = config_entry.data["cod_incasare"]
-        self._attr_unique_id = f"{DOMAIN}_trimite_index_{config_entry.entry_id}"
-        self._attr_name = "Trimite index"
+        self._attr_name = "Trimite index gaz"
+        self._attr_unique_id = f"{DOMAIN}_trimite_index_gaz_{config_entry.entry_id}"
+        self._custom_entity_id = f"button.{DOMAIN}_{self._cod_incasare}_trimite_index_gaz"
+
+    @property
+    def entity_id(self) -> str | None:
+        """Returnează ID-ul entității."""
+        return self._custom_entity_id
+
+    @entity_id.setter
+    def entity_id(self, value: str) -> None:
+        """Setează ID-ul entității."""
+        self._custom_entity_id = value
 
     @property
     def device_info(self) -> DeviceInfo:
         """Returnează informațiile despre dispozitiv."""
-        data = self.coordinator.data.get("dateuser", {}) if self.coordinator.data else {}
-        address_obj = data.get("consumptionPointAddress", {}) if isinstance(data, dict) else {}
-        street_obj = address_obj.get("street", {}) if isinstance(address_obj, dict) else {}
-
-        street_type = street_obj.get("streetType", {}).get("label", "Strada")
-        street_name = street_obj.get("streetName", "Necunoscută")
-        street_no = address_obj.get("streetNumber", "N/A")
-        apartment = address_obj.get("apartment", "N/A")
-        locality_name = address_obj.get("locality", {}).get("localityName", "Necunoscut")
-
-        full_address = f"{street_type} {street_name} {street_no} ap. {apartment}, {locality_name}"
-
-        # Name include cod_incasare în clar (conform cerinței tale).
-        # ATENȚIE: dacă pui și adresa aici, Home Assistant îți va lungi entity_id-urile.
         return DeviceInfo(
             identifiers={(DOMAIN, self._cod_incasare)},
             name=f"E·ON România ({self._cod_incasare})",
