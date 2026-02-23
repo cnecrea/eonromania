@@ -1,5 +1,7 @@
 """Constante pentru integrarea E·ON România."""
 
+from homeassistant.const import Platform
+
 DOMAIN = "eonromania"
 
 # Config default
@@ -30,8 +32,8 @@ URLS = {
     "facturasold_prosum_balance": "https://api2.eon.ro/invoices/v1/invoices/invoice-balance-prosum?accountContract={cod_incasare}",
 }
 
-# Platforme suportate
-PLATFORMS: list[str] = ["sensor", "button"]
+# Platforme suportate (folosim enum-ul HA, nu stringuri)
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BUTTON]
 
 # Atribuție
 ATTRIBUTION = "Date furnizate de E·ON România"
