@@ -103,8 +103,6 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Returnează fluxul de opțiuni."""
-        # IMPORTANT: OptionsFlow are deja self.config_entry (property read-only setat de HA).
-        # Nu trebuie să îl pasăm și nici să îl setăm manual.
         return EonRomaniaOptionsFlow()
 
 
@@ -113,6 +111,8 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Pasul inițial pentru modificarea opțiunilor."""
+        errors: dict[str, str] = {}
+
         _LOGGER.debug(
             "Inițializare OptionsFlow pentru %s (entry_id=%s).",
             DOMAIN,
@@ -120,43 +120,80 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
         )
 
         if user_input is not None:
-            # NU logăm user_input: conține parola.
-            _LOGGER.info(
-                "Se actualizează opțiunile integrării %s (entry_id=%s, utilizator=%s, contract=%s).",
-                DOMAIN,
-                self.config_entry.entry_id,
-                user_input.get("username", self.config_entry.data.get("username", "")),
-                user_input.get(
-                    "cod_incasare", self.config_entry.data.get("cod_incasare", "")
-                ),
+            # Determinăm credențialele efective
+            username = user_input.get("username") or self.config_entry.data.get("username", "")
+            # Dacă parola e goală, păstrăm parola existentă
+            password = user_input.get("password") or self.config_entry.data.get("password", "")
+            cod_incasare = user_input.get("cod_incasare") or self.config_entry.data.get("cod_incasare", "")
+            update_interval = user_input.get(
+                "update_interval",
+                self.config_entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL),
             )
 
-            updated_data = {
-                "username": user_input.get(
-                    "username", self.config_entry.data.get("username", "")
-                ),
-                "password": user_input.get(
-                    "password", self.config_entry.data.get("password", "")
-                ),
-                "cod_incasare": user_input.get(
-                    "cod_incasare", self.config_entry.data.get("cod_incasare", "")
-                ),
-            }
-            updated_options = {
-                "update_interval": user_input.get(
-                    "update_interval",
-                    self.config_entry.options.get(
-                        "update_interval", DEFAULT_UPDATE_INTERVAL
-                    ),
-                ),
-            }
+            # Validăm cod_incasare
+            try:
+                if len(cod_incasare) < 12:
+                    cod_incasare = cod_incasare.zfill(12)
+                elif len(cod_incasare) > 12:
+                    raise ValueError("Codul de încasare este prea lung.")
+            except ValueError:
+                errors["cod_incasare"] = "invalid_cod_incasare"
 
-            self.hass.config_entries.async_update_entry(
-                self.config_entry,
-                data=updated_data,
-                options=updated_options,
+            # Verificăm dacă credențialele s-au schimbat
+            credentials_changed = (
+                username != self.config_entry.data.get("username", "")
+                or (user_input.get("password") and password != self.config_entry.data.get("password", ""))
+                or cod_incasare != self.config_entry.data.get("cod_incasare", "")
             )
-            return self.async_create_entry(title="", data={})
+
+            # Re-validăm autentificarea dacă credențialele s-au schimbat
+            if not errors and credentials_changed:
+                session = async_get_clientsession(self.hass)
+                api_client = EonApiClient(session, username, password)
+
+                try:
+                    success = await api_client.async_login()
+                except Exception as err:
+                    _LOGGER.exception(
+                        "Eroare la testarea noilor credențiale (utilizator=%s, contract=%s): %s",
+                        username,
+                        cod_incasare,
+                        err,
+                    )
+                    success = False
+
+                if not success:
+                    errors["base"] = "auth_failed"
+                    _LOGGER.warning(
+                        "Autentificare eșuată la modificarea opțiunilor (utilizator=%s, contract=%s).",
+                        username,
+                        cod_incasare,
+                    )
+
+            if not errors:
+                _LOGGER.info(
+                    "Se actualizează opțiunile integrării %s (entry_id=%s, utilizator=%s, contract=%s).",
+                    DOMAIN,
+                    self.config_entry.entry_id,
+                    username,
+                    cod_incasare,
+                )
+
+                updated_data = {
+                    "username": username,
+                    "password": password,
+                    "cod_incasare": cod_incasare,
+                }
+                updated_options = {
+                    "update_interval": update_interval,
+                }
+
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry,
+                    data=updated_data,
+                    options=updated_options,
+                )
+                return self.async_create_entry(title="", data={})
 
         data_schema = vol.Schema(
             {
@@ -166,7 +203,7 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
                 ): str,
                 vol.Optional(
                     "password",
-                    default=self.config_entry.data.get("password", ""),
+                    description={"suggested_value": ""},
                 ): str,
                 vol.Optional(
                     "cod_incasare",
@@ -181,4 +218,8 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
             }
         )
 
-        return self.async_show_form(step_id="init", data_schema=data_schema)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=data_schema,
+            errors=errors,
+        )
