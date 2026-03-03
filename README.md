@@ -2,6 +2,12 @@
 
 # E-ON România - Integrare pentru Home Assistant 🏠🇷🇴
 
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![GitHub Release](https://img.shields.io/github/v/release/cnecrea/eonromania)](https://github.com/cnecrea/eonromania/releases)
+![Total descărcări pentru toate versiunile](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/cnecrea/eonromania/main/statistici/shields/descarcari.json)
+![Descărcări pentru ultima versiune](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/cnecrea/eonromania/main/statistici/shields/ultima_release.json)
+
+
 Această integrare pentru Home Assistant oferă **monitorizare completă** a datelor contractuale și a indexurilor de consum pentru utilizatorii E-ON România. Integrarea este configurabilă prin interfața UI și permite afișarea datelor despre contract, citirea indexurilor curente, facturile restante (inclusiv prosumator) și arhivarea datelor istorice. 🚀
 
 Integrarea detectează automat tipul contractului (gaz sau energie electrică) și adaptează denumirile senzorilor, unitățile de măsură și entity ID-urile.
