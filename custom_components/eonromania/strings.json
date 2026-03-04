@@ -1,0 +1,69 @@
+{
+  "title": "E·ON România",
+
+  "config": {
+    "flow_title": "E·ON România",
+
+    "step": {
+      "user": {
+        "title": "Connect to E·ON Myline account",
+        "description": "Enter your E·ON Myline email and password. Contracts will be discovered automatically.",
+        "data": {
+          "username": "Email address",
+          "password": "Password",
+          "update_interval": "Update interval (seconds)"
+        }
+      },
+
+      "select_contracts": {
+        "title": "Select contracts",
+        "description": "We found contracts in your account. Select the contracts you want to monitor.",
+        "data": {
+          "select_all": "Select all contracts",
+          "selected_contracts": "Available contracts"
+        }
+      }
+    },
+
+    "error": {
+      "auth_failed": "Authentication failed. Please check your email and password.",
+      "no_data": "Authentication was successful, but no contracts were found for this account.",
+      "no_contract_selected": "Please select at least one contract to continue."
+    },
+
+    "abort": {
+      "already_configured": "This E·ON account is already configured."
+    }
+  },
+
+  "options": {
+    "flow_title": "E·ON România settings",
+
+    "step": {
+      "init": {
+        "title": "Account settings",
+        "description": "Update your credentials and refresh interval. After saving, you will be able to reselect contracts.",
+        "data": {
+          "username": "Email address",
+          "password": "Password",
+          "update_interval": "Update interval (seconds)"
+        }
+      },
+
+      "select_contracts": {
+        "title": "Change monitored contracts",
+        "description": "Select the contracts you want to monitor. Unselect those you no longer want to track.",
+        "data": {
+          "select_all": "Select all contracts",
+          "selected_contracts": "Available contracts"
+        }
+      }
+    },
+
+    "error": {
+      "auth_failed": "Authentication failed with the provided credentials.",
+      "no_data": "No contracts were found for this account.",
+      "no_contract_selected": "Please select at least one contract."
+    }
+  }
+}
