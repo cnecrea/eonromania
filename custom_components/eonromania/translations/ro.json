@@ -1,40 +1,69 @@
 {
-    "title": "E·ON România",
-    "config": {
-        "step": {
-            "user": {
-                "title": "Configurare pentru E·ON România",
-                "description": "Introduceți detaliile contului pentru autentificare.",
-                "data": {
-                    "username": "Nume de utilizator",
-                    "password": "Parolă",
-                    "cod_incasare": "Cod de încasare",
-                    "update_interval": "Interval de actualizare (secunde)"
-                }
-            }
-        },
-        "error": {
-            "auth_failed": "Autentificare eșuată. Verificați datele introduse.",
-            "connection_error": "Eroare de conexiune. Încercați din nou mai târziu.",
-            "invalid_cod_incasare": "Codul de încasare trebuie să aibă exact 12 cifre."
+  "title": "E·ON România",
+
+  "config": {
+    "flow_title": "E·ON România",
+
+    "step": {
+      "user": {
+        "title": "Conectare la contul E·ON Myline",
+        "description": "Introduceți adresa de email și parola contului E·ON Myline. Contractele vor fi descoperite automat.",
+        "data": {
+          "username": "Adresă de email",
+          "password": "Parolă",
+          "update_interval": "Interval de actualizare (secunde)"
         }
+      },
+
+      "select_contracts": {
+        "title": "Selectare contracte",
+        "description": "Am identificat contractele asociate contului. Selectați contractele pe care doriți să le monitorizați.",
+        "data": {
+          "select_all": "Selectează toate contractele",
+          "selected_contracts": "Contracte disponibile"
+        }
+      }
     },
-    "options": {
-        "step": {
-            "init": {
-                "title": "Modificați opțiunile pentru E·ON România",
-                "description": "Actualizați informațiile contului și intervalul de actualizare. Lăsați câmpul de parolă gol pentru a păstra parola existentă.",
-                "data": {
-                    "username": "Nume de utilizator",
-                    "password": "Parolă nouă (gol = păstrează actuala)",
-                    "cod_incasare": "Cod de încasare",
-                    "update_interval": "Interval de actualizare (secunde)"
-                }
-            }
-        },
-        "error": {
-            "auth_failed": "Autentificare eșuată cu noile credențiale. Verificați datele introduse.",
-            "invalid_cod_incasare": "Codul de încasare trebuie să aibă exact 12 cifre."
-        }
+
+    "error": {
+      "auth_failed": "Autentificare eșuată. Verificați adresa de email și parola.",
+      "no_data": "Autentificare reușită, dar nu au fost găsite contracte asociate acestui cont.",
+      "no_contract_selected": "Selectați cel puțin un contract pentru a continua."
+    },
+
+    "abort": {
+      "already_configured": "Acest cont E·ON este deja configurat."
     }
+  },
+
+  "options": {
+    "flow_title": "Setări E·ON România",
+
+    "step": {
+      "init": {
+        "title": "Setări cont",
+        "description": "Actualizați credențialele și intervalul de actualizare. După salvare, veți putea selecta din nou contractele monitorizate.",
+        "data": {
+          "username": "Adresă de email",
+          "password": "Parolă",
+          "update_interval": "Interval de actualizare (secunde)"
+        }
+      },
+
+      "select_contracts": {
+        "title": "Modificare contracte monitorizate",
+        "description": "Selectați contractele pe care doriți să le monitorizați și debifați-le pe cele pe care nu mai doriți să le urmăriți.",
+        "data": {
+          "select_all": "Selectează toate contractele",
+          "selected_contracts": "Contracte disponibile"
+        }
+      }
+    },
+
+    "error": {
+      "auth_failed": "Autentificare eșuată cu credențialele introduse.",
+      "no_data": "Nu au fost găsite contracte asociate acestui cont.",
+      "no_contract_selected": "Selectați cel puțin un contract."
+    }
+  }
 }
