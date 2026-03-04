@@ -1,8 +1,7 @@
 """Inițializarea integrării E·ON România."""
 
 import logging
-from dataclasses import dataclass
-from typing import TypeAlias
+from dataclasses import dataclass, field
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -23,130 +22,169 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 class EonRomaniaRuntimeData:
     """Structură tipizată pentru datele runtime ale integrării."""
 
-    coordinator: EonRomaniaCoordinator
-    api_client: EonApiClient
-
-
-# Type alias pentru ConfigEntry cu runtime_data tipizat
-EonRomaniaConfigEntry: TypeAlias = ConfigEntry[EonRomaniaRuntimeData]
+    coordinators: dict[str, EonRomaniaCoordinator] = field(default_factory=dict)
+    api_client: EonApiClient | None = None
 
 
 async def async_setup(hass: HomeAssistant, config: dict):
-    """Configurează integrarea globală E·ON România, dacă e necesar."""
+    """Configurează integrarea globală E·ON România."""
     _LOGGER.debug("Inițializare globală integrare: %s", DOMAIN)
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: EonRomaniaConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Configurează integrarea pentru o anumită intrare (config entry)."""
     _LOGGER.info("Se configurează integrarea %s (entry_id=%s).", DOMAIN, entry.entry_id)
 
-    # Creăm clientul API
     session = async_get_clientsession(hass)
     username = entry.data["username"]
     password = entry.data["password"]
-    cod_incasare = entry.data["cod_incasare"]
-    update_interval = entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL)
+    update_interval = entry.data.get("update_interval", DEFAULT_UPDATE_INTERVAL)
 
-    # Nu logăm parola; codul de încasare îl logăm în clar (conform cerinței tale).
+    # Compatibilitate: formatul vechi (un singur cod_incasare) vs nou (listă)
+    selected_contracts = entry.data.get("selected_contracts", [])
+    if not selected_contracts:
+        # Formatul vechi — un singur contract
+        old_cod = entry.data.get("cod_incasare", "")
+        if old_cod:
+            selected_contracts = [old_cod]
+
+    if not selected_contracts:
+        _LOGGER.error(
+            "Nu există contracte selectate pentru %s (entry_id=%s).",
+            DOMAIN, entry.entry_id,
+        )
+        return False
+
     _LOGGER.debug(
-        "Parametri intrare %s (entry_id=%s): contract=%s, interval=%ss.",
-        DOMAIN,
-        entry.entry_id,
-        cod_incasare,
-        update_interval,
+        "Contracte selectate pentru %s (entry_id=%s): %s, interval=%ss.",
+        DOMAIN, entry.entry_id, selected_contracts, update_interval,
     )
 
+    # Un singur client API partajat (un singur cont, un singur token)
     api_client = EonApiClient(session, username, password)
 
-    # Creăm coordinatorul
-    coordinator = EonRomaniaCoordinator(
-        hass,
-        api_client=api_client,
-        cod_incasare=cod_incasare,
-        update_interval=update_interval,
+    # Creăm câte un coordinator per contract selectat
+    coordinators: dict[str, EonRomaniaCoordinator] = {}
+
+    for cod in selected_contracts:
+        coordinator = EonRomaniaCoordinator(
+            hass,
+            api_client=api_client,
+            cod_incasare=cod,
+            update_interval=update_interval,
+        )
+
+        try:
+            await coordinator.async_config_entry_first_refresh()
+        except UpdateFailed as err:
+            _LOGGER.error(
+                "Prima actualizare eșuată (entry_id=%s, contract=%s): %s",
+                entry.entry_id, cod, err,
+            )
+            # Continuăm cu restul contractelor — nu oprim totul pentru unul
+            continue
+        except Exception as err:
+            _LOGGER.exception(
+                "Eroare neașteptată la prima actualizare (entry_id=%s, contract=%s): %s",
+                entry.entry_id, cod, err,
+            )
+            continue
+
+        coordinators[cod] = coordinator
+
+    if not coordinators:
+        _LOGGER.error(
+            "Niciun coordinator inițializat cu succes pentru %s (entry_id=%s).",
+            DOMAIN, entry.entry_id,
+        )
+        return False
+
+    _LOGGER.info(
+        "%s coordinatoare active din %s contracte selectate (entry_id=%s).",
+        len(coordinators), len(selected_contracts), entry.entry_id,
     )
 
-    # Prima actualizare (important să avem log clar dacă pică aici)
-    try:
-        await coordinator.async_config_entry_first_refresh()
-    except UpdateFailed as err:
-        _LOGGER.error(
-            "Prima actualizare a datelor E·ON a eșuat (entry_id=%s, contract=%s): %s",
-            entry.entry_id,
-            cod_incasare,
-            err,
-        )
-        raise
-    except Exception as err:
-        _LOGGER.exception(
-            "Eroare neașteptată la prima actualizare a datelor E·ON (entry_id=%s, contract=%s): %s",
-            entry.entry_id,
-            cod_incasare,
-            err,
-        )
-        raise
-
-    # Salvăm datele runtime în config entry (pattern modern)
+    # Salvăm datele runtime
     entry.runtime_data = EonRomaniaRuntimeData(
-        coordinator=coordinator,
+        coordinators=coordinators,
         api_client=api_client,
     )
 
     # Încărcăm platformele
-    _LOGGER.debug(
-        "Se încarcă platformele pentru %s (entry_id=%s): %s",
-        DOMAIN,
-        entry.entry_id,
-        [p.value if hasattr(p, "value") else str(p) for p in PLATFORMS],
-    )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Listener pentru modificarea opțiunilor în timp real (fără restart)
+    # Listener pentru modificarea opțiunilor
     entry.async_on_unload(entry.add_update_listener(_async_update_options))
 
     _LOGGER.info(
-        "Integrarea %s este configurată (entry_id=%s, contract=%s).",
-        DOMAIN,
-        entry.entry_id,
-        cod_incasare,
+        "Integrarea %s configurată (entry_id=%s, contracte=%s).",
+        DOMAIN, entry.entry_id, list(coordinators.keys()),
     )
     return True
 
 
-async def _async_update_options(hass: HomeAssistant, entry: EonRomaniaConfigEntry):
+async def _async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     """Reîncarcă integrarea când opțiunile se schimbă."""
     _LOGGER.info(
         "Opțiunile integrării %s s-au schimbat (entry_id=%s). Se reîncarcă...",
-        DOMAIN,
-        entry.entry_id,
+        DOMAIN, entry.entry_id,
     )
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: EonRomaniaConfigEntry):
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Descărcarea intrării din config_entries."""
-    cod_incasare = entry.data.get("cod_incasare", "")
     _LOGGER.info(
-        "Se descarcă integrarea %s (entry_id=%s, contract=%s).",
-        DOMAIN,
-        entry.entry_id,
-        cod_incasare,
+        "Se descarcă integrarea %s (entry_id=%s).",
+        DOMAIN, entry.entry_id,
     )
 
     ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if ok:
-        _LOGGER.info(
-            "Integrarea %s a fost descărcată (entry_id=%s, contract=%s).",
-            DOMAIN,
-            entry.entry_id,
-            cod_incasare,
-        )
+        _LOGGER.info("Integrarea %s descărcată (entry_id=%s).", DOMAIN, entry.entry_id)
     else:
         _LOGGER.warning(
-            "Integrarea %s nu a putut fi descărcată complet (entry_id=%s, contract=%s).",
-            DOMAIN,
-            entry.entry_id,
-            cod_incasare,
+            "Integrarea %s nu a putut fi descărcată complet (entry_id=%s).",
+            DOMAIN, entry.entry_id,
         )
     return ok
+
+
+async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+    """Migrare de la versiuni vechi la versiunea curentă."""
+    _LOGGER.debug(
+        "Migrare config entry %s de la versiunea %s.",
+        config_entry.entry_id, config_entry.version,
+    )
+
+    if config_entry.version < 3:
+        # v1/v2 → v3: convertim cod_incasare la selected_contracts[]
+        old_data = dict(config_entry.data)
+        old_cod = old_data.get("cod_incasare", "")
+        old_interval = old_data.get("update_interval",
+                        config_entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL))
+
+        new_data = {
+            "username": old_data.get("username", ""),
+            "password": old_data.get("password", ""),
+            "update_interval": old_interval,
+            "select_all": False,
+            "selected_contracts": [old_cod] if old_cod else [],
+        }
+
+        _LOGGER.info(
+            "Migrare entry %s: v%s → v3 (cod_incasare=%s → selected_contracts).",
+            config_entry.entry_id, config_entry.version, old_cod,
+        )
+
+        hass.config_entries.async_update_entry(
+            config_entry, data=new_data, options={}, version=3
+        )
+        return True
+
+    _LOGGER.error(
+        "Versiune necunoscută pentru migrare: %s (entry_id=%s).",
+        config_entry.version, config_entry.entry_id,
+    )
+    return False
