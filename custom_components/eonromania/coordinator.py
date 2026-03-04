@@ -26,7 +26,7 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
-            name="EonRomaniaCoordinator",
+            name=f"EonRomaniaCoordinator_{cod_incasare}",
             update_interval=timedelta(seconds=update_interval),
         )
         self.api_client = api_client
@@ -34,55 +34,57 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> dict:
         """Obține date de la API — toate apelurile în paralel."""
-        cod_incasare = self.cod_incasare
+        cod = self.cod_incasare
 
-        _LOGGER.debug("Începe actualizarea datelor E·ON (contract=%s).", cod_incasare)
+        _LOGGER.debug("Începe actualizarea datelor E·ON (contract=%s).", cod)
 
         try:
-            # Login inteligent înainte de apelurile paralele:
-            # - Dacă nu avem token deloc → login obligatoriu
-            # - Dacă tokenul e probabil expirat (>55 min) → login proactiv
-            # - Dacă tokenul e proaspăt → îl reutilizăm
-            # Astfel evităm 9 cereri eșuate + 9 retry-uri la token expirat.
+            # Login proactiv dacă tokenul e expirat sau absent
             if not self.api_client.is_token_likely_valid():
                 _LOGGER.debug(
                     "Token absent sau probabil expirat. Se face login proactiv (contract=%s).",
-                    cod_incasare,
+                    cod,
                 )
                 self.api_client.invalidate_token()
                 ok = await self.api_client.async_login()
                 if not ok:
                     _LOGGER.warning(
-                        "Autentificare eșuată la API-ul E·ON (contract=%s).", cod_incasare
+                        "Autentificare eșuată la API-ul E·ON (contract=%s).", cod
                     )
                     raise UpdateFailed("Nu s-a putut autentifica la API-ul E·ON.")
 
+            # ──────────────────────────────────────
+            # Apeluri paralele — 11 endpoint-uri
+            # ──────────────────────────────────────
             (
-                dateuser_data,
-                citireindex_data,
-                conventieconsum_data,
-                comparareanualagrafic_data,
-                arhiva_data,
-                facturasold_data,
-                payments_data,
-                facturasold_prosum_data,
-                facturasold_prosum_balance_data,
+                contract_details,
+                invoices_unpaid,
+                invoices_prosum,
+                invoice_balance,
+                invoice_balance_prosum,
+                rescheduling_plans,
+                graphic_consumption,
+                meter_index,
+                consumption_convention,
+                meter_history,
+                payments,
             ) = await asyncio.gather(
-                self.api_client.async_fetch_dateuser_data(cod_incasare),
-                self.api_client.async_fetch_citireindex_data(cod_incasare),
-                self.api_client.async_fetch_conventieconsum_data(cod_incasare),
-                self.api_client.async_fetch_comparareanualagrafic_data(cod_incasare),
-                self.api_client.async_fetch_arhiva_data(cod_incasare),
-                self.api_client.async_fetch_facturasold_data(cod_incasare),
-                self.api_client.async_fetch_payments_data(cod_incasare),
-                self.api_client.async_fetch_facturasold_prosum_data(cod_incasare),
-                self.api_client.async_fetch_facturasold_prosum_balance_data(cod_incasare),
+                self.api_client.async_fetch_contract_details(cod),
+                self.api_client.async_fetch_invoices_unpaid(cod),
+                self.api_client.async_fetch_invoices_prosum(cod),
+                self.api_client.async_fetch_invoice_balance(cod),
+                self.api_client.async_fetch_invoice_balance_prosum(cod),
+                self.api_client.async_fetch_rescheduling_plans(cod),
+                self.api_client.async_fetch_graphic_consumption(cod),
+                self.api_client.async_fetch_meter_index(cod),
+                self.api_client.async_fetch_consumption_convention(cod),
+                self.api_client.async_fetch_meter_history(cod),
+                self.api_client.async_fetch_payments(cod),
             )
 
         except asyncio.TimeoutError as err:
             _LOGGER.error(
-                "Depășire de timp la actualizarea datelor E·ON (contract=%s).",
-                cod_incasare,
+                "Depășire de timp la actualizarea datelor E·ON (contract=%s).", cod
             )
             raise UpdateFailed("Depășire de timp la actualizarea datelor E·ON.") from err
 
@@ -92,75 +94,65 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.exception(
                 "Eroare neașteptată la actualizarea datelor E·ON (contract=%s): %s",
-                cod_incasare,
+                cod,
                 err,
             )
             raise UpdateFailed("Eroare neașteptată la actualizarea datelor E·ON.") from err
 
         # Verificăm dacă datele esențiale sunt disponibile
-        if dateuser_data is None and citireindex_data is None:
+        if contract_details is None and meter_index is None:
             _LOGGER.error(
-                "Date esențiale indisponibile de la E·ON (dateuser + citireindex sunt None) (contract=%s).",
-                cod_incasare,
+                "Date esențiale indisponibile (contract_details + meter_index sunt None) (contract=%s).",
+                cod,
             )
             raise UpdateFailed(
-                "Nu s-au putut obține datele esențiale de la E·ON (dateuser + citireindex)."
+                "Nu s-au putut obține datele esențiale de la E·ON (contract_details + meter_index)."
             )
 
-        # Detectează unitatea de măsură din graficul de consum anual.
-        # "m3" = gaz, "kWh" = curent electric.
-        # Dacă câmpul lipsește din răspuns, fallback pe "m3".
-        um = "m3"
-        if isinstance(comparareanualagrafic_data, dict):
-            um_raw = comparareanualagrafic_data.get("um")
-            if um_raw:
-                um = um_raw.lower()  # normalizează: 'M3' -> 'm3', 'KWH' -> 'kwh'
-            else:
-                _LOGGER.debug(
-                    "Câmpul 'um' lipsește din comparareanualagrafic (contract=%s). "
-                    "Se folosește valoarea implicită: '%s'. "
-                    "Structura răspunsului: %s",
-                    cod_incasare,
-                    um,
-                    list(comparareanualagrafic_data.keys()),
-                )
+        # Detectează unitatea de măsură din graficul de consum anual
+        um = self._detect_unit(graphic_consumption)
 
+        # Debug: câte endpointuri au returnat None
+        all_results = [
+            contract_details, invoices_unpaid, invoices_prosum,
+            invoice_balance, invoice_balance_prosum,
+            rescheduling_plans, graphic_consumption,
+            meter_index, consumption_convention,
+            meter_history, payments,
+        ]
+        none_count = sum(x is None for x in all_results)
         _LOGGER.debug(
-            "Unitate de măsură detectată: '%s' (contract=%s).",
-            um,
-            cod_incasare,
-        )
-
-        # Debug scurt, util: câte endpointuri au venit cu None
-        none_count = sum(
-            x is None
-            for x in (
-                dateuser_data,
-                citireindex_data,
-                conventieconsum_data,
-                comparareanualagrafic_data,
-                arhiva_data,
-                facturasold_data,
-                payments_data,
-                facturasold_prosum_data,
-                facturasold_prosum_balance_data,
-            )
-        )
-        _LOGGER.debug(
-            "Actualizare E·ON finalizată (contract=%s). Endpointuri fără date: %s/9.",
-            cod_incasare,
+            "Actualizare E·ON finalizată (contract=%s). Endpointuri fără date: %s/11.",
+            cod,
             none_count,
         )
 
         return {
-            "dateuser": dateuser_data,
-            "citireindex": citireindex_data,
-            "conventieconsum": conventieconsum_data,
-            "comparareanualagrafic": comparareanualagrafic_data,
-            "arhiva": arhiva_data,
-            "facturasold": facturasold_data,
-            "payments": payments_data,
-            "facturasold_prosum": facturasold_prosum_data,
-            "facturasold_prosum_balance": facturasold_prosum_balance_data,
+            # Contract
+            "contract_details": contract_details,
+            # Facturi
+            "invoices_unpaid": invoices_unpaid,
+            "invoices_prosum": invoices_prosum,
+            "invoice_balance": invoice_balance,
+            "invoice_balance_prosum": invoice_balance_prosum,
+            "rescheduling_plans": rescheduling_plans,
+            "graphic_consumption": graphic_consumption,
+            # Contor
+            "meter_index": meter_index,
+            "consumption_convention": consumption_convention,
+            "meter_history": meter_history,
+            # Plăți
+            "payments": payments,
+            # Metadate
             "um": um,
         }
+
+    @staticmethod
+    def _detect_unit(graphic_consumption_data) -> str:
+        """Detectează unitatea de măsură: m3 (gaz) sau kWh (electricitate)."""
+        if not graphic_consumption_data or not isinstance(graphic_consumption_data, dict):
+            return "m3"
+        um_raw = graphic_consumption_data.get("um")
+        if um_raw:
+            return um_raw.lower()
+        return "m3"
