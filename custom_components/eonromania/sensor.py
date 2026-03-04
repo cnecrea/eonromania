@@ -924,7 +924,6 @@ class ArhivaPlatiSensor(EonRomaniaEntity):
         return [p for p in all_payments if p.get("paymentDate", "").startswith(str(self.year))]
 
 
-
 # ──────────────────────────────────────────────
 # ArhivaComparareConsumAnualGraficSensor
 # ──────────────────────────────────────────────
