@@ -416,11 +416,6 @@ class ReschedulingPlansSensor(EonRomaniaEntity):
         return attributes
 
 
-# ══════════════════════════════════════════════
-# SENZORI EXISTENȚI (ACTUALIZAȚI)
-# ══════════════════════════════════════════════
-
-
 # ──────────────────────────────────────────────
 # CitireIndexSensor
 # ──────────────────────────────────────────────
