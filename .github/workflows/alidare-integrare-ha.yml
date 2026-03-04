@@ -1,0 +1,47 @@
+name: Validare integrare Home Assistant
+
+on:
+  push:
+    paths:
+      - 'custom_components/**'
+      - 'tests/**'
+  pull_request:
+    paths:
+      - 'custom_components/**'
+      - 'tests/**'
+
+jobs:
+  validare:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clonare repository
+        uses: actions/checkout@v4
+
+      - name: Configurare Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalare unelte dezvoltare
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            pytest \
+            pytest-homeassistant-custom-component \
+            ruff \
+            homeassistant \
+            wheel
+
+      - name: Validare manifest și structură (hassfest)
+        run: |
+          python -m script.hassfest
+        continue-on-error: false
+
+      - name: Verificare stil și erori statice (ruff)
+        run: |
+          ruff check custom_components
+
+      - name: Rulare teste
+        run: |
+          pytest --disable-warnings --maxfail=1
