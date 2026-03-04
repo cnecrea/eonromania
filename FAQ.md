@@ -8,11 +8,14 @@
 - [Nu îmi apare senzorul „Citire permisă". De ce?](#nu-îmi-apare-senzorul-citire-permisă-de-ce)
 - [Ce înseamnă senzorul „Factură restantă prosumator"?](#ce-înseamnă-senzorul-factură-restantă-prosumator)
 - [Nu sunt prosumator. Senzorul de prosumator îmi afișează „Nu" — e normal?](#nu-sunt-prosumator-senzorul-de-prosumator-îmi-afișează-nu--e-normal)
+- [Ce înseamnă senzorul „Sold factură"?](#ce-înseamnă-senzorul-sold-factură)
 - [De ce entitățile au un nume lung, cu codul de încasare inclus?](#de-ce-entitățile-au-un-nume-lung-cu-codul-de-încasare-inclus)
+- [Pot monitoriza mai multe contracte simultan?](#pot-monitoriza-mai-multe-contracte-simultan)
 - [Vreau să trimit indexul automat. De ce am nevoie?](#vreau-să-trimit-indexul-automat-de-ce-am-nevoie)
 - [Am un cititor de contor gaz. Cum fac automatizarea?](#am-un-cititor-de-contor-gaz-cum-fac-automatizarea)
 - [De ce valorile sunt afișate cu punct și virgulă (1.234,56)?](#de-ce-valorile-sunt-afișate-cu-punct-și-virgulă-123456)
 - [Am schimbat opțiunile integrării. Trebuie să restartez?](#am-schimbat-opțiunile-integrării-trebuie-să-restartez)
+- [Trebuie să șterg și readaug integrarea la actualizare?](#trebuie-să-șterg-și-readaug-integrarea-la-actualizare)
 - [Îmi place proiectul. Cum pot să-l susțin?](#îmi-place-proiectul-cum-pot-să-l-susțin)
 
 ---
@@ -25,9 +28,11 @@ Ai nevoie de HACS (Home Assistant Community Store) instalat. Dacă nu-l ai, urme
 
 1. În Home Assistant, mergi la **HACS** → cele **trei puncte** din dreapta sus → **Custom repositories**.
 2. Introdu URL-ul: `https://github.com/cnecrea/eonromania` și selectează tipul **Integration**.
-3. Apasă **Add**, apoi caută **E-ON România** în HACS și instalează.
+3. Apasă **Add**, apoi caută **E·ON România** în HACS și instalează.
 4. Repornește Home Assistant.
 5. Mergi la **Setări** → **Dispozitive și Servicii** → **Adaugă Integrare** → caută **E·ON România** și urmează pașii de configurare.
+
+Detalii complete în [SETUP.md](./SETUP.md).
 
 ---
 
@@ -35,16 +40,17 @@ Ai nevoie de HACS (Home Assistant Community Store) instalat. Dacă nu-l ai, urme
 
 [↑ Înapoi la cuprins](#top)
 
-Da, dar codul de încasare este diferit de cel afișat pe factura DUO. Iată cum găsești codurile corecte:
+Da, iar în versiunea 3.0.0 e mai simplu ca niciodată. Integrarea descoperă automat toate contractele asociate contului tău la pasul de selectare.
 
-1. Autentifică-te în contul tău E·ON.
-2. Mergi la **Contul meu** → **Transmitere index**.
-3. Selectează contul DUO (click pe nume) — vei vedea serviciile asociate (gaz, electricitate).
-4. Fiecare serviciu are un **cod de încasare propriu** care începe cu `2XXXX`. Acela e cel corect.
+Iată cum procedezi:
 
-> **Nu folosi** codul DUO care începe cu `9XXXX` — nu funcționează cu API-ul E·ON.
+1. Adaugă integrarea cu email-ul și parola contului E·ON Myline.
+2. La pasul 2 (selectare contracte), vei vedea toate contractele cu adresele complete — inclusiv ambele servicii DUO (gaz + electricitate).
+3. Selectează-le pe ambele (sau bifează „Selectează toate contractele").
 
-Dacă vrei ambele servicii monitorizate, adaugă integrarea de două ori, o dată cu fiecare cod de încasare. Integrarea va detecta automat tipul contractului (gaz sau electricitate) și va adapta denumirile senzorilor și entity ID-urile corespunzător.
+Fiecare contract va genera un device separat cu senzorii proprii. Integrarea detectează automat tipul contractului (gaz sau electricitate) și adaptează denumirile senzorilor.
+
+> **Notă:** În versiunile anterioare (v1/v2), trebuia să adaugi integrarea de două ori, cu câte un cod de încasare. Acum, un singur cont gestionează toate contractele simultan.
 
 ---
 
@@ -68,8 +74,8 @@ Concret, în afara perioadei de citire, răspunsul API arată cam așa:
 ```json
 {
     "readingPeriod": {
-        "startDate": "2025-01-20",
-        "endDate": "2025-01-28",
+        "startDate": "2026-03-20",
+        "endDate": "2026-03-28",
         "allowedReading": true,
         "inPeriod": false
     },
@@ -99,7 +105,7 @@ Același motiv ca la indexul curent — senzorul „Citire permisă" depinde de 
 
 Acest senzor monitorizează facturile asociate contractului de **prosumator** (persoane care au panouri fotovoltaice sau alte surse de producție și sunt conectate la rețea).
 
-Entity ID-ul acestui senzor este `sensor.eonromania_00XXXXXXXXXX_factura_prosumator`.
+Entity ID-ul acestui senzor este `sensor.eonromania_{cod}_factura_prosumator`.
 
 Diferența față de senzorul normal „Factură restantă":
 - **Factură restantă** — arată doar dacă ai datorii pe contul de consum obișnuit.
@@ -115,6 +121,22 @@ Absolut normal. Dacă nu ai contract de prosumator, API-ul E·ON nu returnează 
 
 ---
 
+## Ce înseamnă senzorul „Sold factură"?
+
+[↑ Înapoi la cuprins](#top)
+
+Senzorul „Sold factură" (`sensor.eonromania_{cod}_sold_factura`) afișează soldul curent al contului tău de consum. Atributele sunt traduse automat din API în română:
+
+- **Sold** — suma totală de plată sau credit
+- **Sold de plată** — Da/Nu (indică dacă ai de plătit)
+- **Rambursare disponibilă** — Da/Nu (dacă poți solicita rambursare)
+- **Garanție activă** — Da/Nu
+- **Data sold** — data la care a fost calculat soldul
+
+Valorile booleene (true/false) sunt traduse automat în Da/Nu, iar sumele sunt afișate în format românesc (1.234,56 lei).
+
+---
+
 ## De ce entitățile au un nume lung, cu codul de încasare inclus?
 
 [↑ Înapoi la cuprins](#top)
@@ -124,12 +146,23 @@ Integrarea setează manual `entity_id`-ul fiecărei entități, incluzând codul
 - `sensor.eonromania_{cod_incasare}_{tip_senzor}`
 - `button.eonromania_{cod_incasare}_{tip_buton}`
 
-De exemplu, pentru un contract de gaz cu codul `001234567890`:
-- `sensor.eonromania_001234567890_index_gaz`
-- `sensor.eonromania_001234567890_date_contract`
-- `button.eonromania_001234567890_trimite_index_gaz`
+De exemplu, pentru un contract de gaz cu codul `002103870166`:
+- `sensor.eonromania_002103870166_index_gaz`
+- `sensor.eonromania_002103870166_date_contract`
+- `sensor.eonromania_002103870166_sold_factura`
+- `button.eonromania_002103870166_trimite_index`
 
-Avantajul principal: dacă ai mai multe coduri de încasare (de exemplu, gaz + electricitate pe cont DUO), fiecare entitate are un ID unic, fără conflicte.
+Avantajul principal: dacă ai mai multe contracte monitorizate simultan, fiecare entitate are un ID unic, fără conflicte.
+
+---
+
+## Pot monitoriza mai multe contracte simultan?
+
+[↑ Înapoi la cuprins](#top)
+
+Da. Începând cu versiunea 3.0.0, integrarea suportă **multi-contract**. Un singur cont E·ON poate monitoriza oricâte coduri de încasare dorești.
+
+La pasul de configurare, selectezi contractele dorite (sau le selectezi pe toate). Fiecare contract generează un device separat cu senzorii proprii, iar datele se actualizează în paralel (toate cele 11 endpoint-uri per contract, simultan).
 
 ---
 
@@ -141,7 +174,7 @@ Două lucruri:
 
 **1. Hardware pe contor** — Un senzor capabil să citească impulsurile contorului (contact reed / magnetic, de regulă). Trebuie să fie compatibil cu contorul tău și să nu necesite modificări permanente ale acestuia. Senzorul trimite impulsurile către Home Assistant, unde sunt convertite într-o valoare numerică stocată în `input_number.gas_meter_reading`.
 
-**2. Integrarea configurată** — Butonul „Trimite index gaz" (`button.eonromania_00XXXXXXXXXX_trimite_index_gaz`) din integrare citește valoarea din `input_number.gas_meter_reading` și o trimite către API-ul E·ON. Poți apăsa butonul manual sau dintr-o automatizare.
+**2. Integrarea configurată** — Butonul „Trimite index" (`button.eonromania_{cod}_trimite_index`) din integrare citește valoarea din `input_number.gas_meter_reading` și o trimite către API-ul E·ON. Poți apăsa butonul manual sau dintr-o automatizare.
 
 > **Atenție:** Butonul caută exact entitatea `input_number.gas_meter_reading`. Dacă aceasta nu există sau are o valoare invalidă, trimiterea va eșua. Verifică în loguri dacă întâmpini probleme.
 
@@ -186,14 +219,14 @@ actions:
         sequence:
           - action: button.press
             target:
-              entity_id: button.eonromania_00XXXXXXXXXX_trimite_index_gaz
+              entity_id: button.eonromania_002103870166_trimite_index
 ```
 
 **Ce face:**
 - În **ziua 9** a fiecărei luni, la **09:00**, primești o notificare cu indexul curent.
 - La **12:00**, integrarea trimite automat indexul către E·ON.
 
-> **⚠️ Important:** Înlocuiește `00XXXXXXXXXX` cu codul tău real de încasare (12 cifre) și `notify.mobile_app_telefonul_meu` cu entity_id-ul serviciului tău de notificare. Entity_id-urile exacte le găsești în **Setări** → **Dispozitive și Servicii** → **E·ON România**.
+> **⚠️ Important:** Înlocuiește `002103870166` cu codul tău real de încasare (12 cifre) și `notify.mobile_app_telefonul_meu` cu entity_id-ul serviciului tău de notificare. Entity_id-urile exacte le găsești în **Setări** → **Dispozitive și Servicii** → **E·ON România**.
 
 ---
 
@@ -203,6 +236,8 @@ actions:
 
 Integrarea folosește formatul numeric românesc: punctul separă miile, virgula separă zecimalele. Exemplu: **1.234,56 lei** înseamnă o mie două sute treizeci și patru de lei și cincizeci și șase de bani. E formatul standard folosit în România.
 
+De asemenea, în senzorul „Arhivă consum", valorile de consum și mediu zilnic folosesc virgula ca separator zecimal (ex: **4,029 m³** în loc de **4.029 m³**), pentru a evita confuzia cu separatorul de mii.
+
 ---
 
 ## Am schimbat opțiunile integrării. Trebuie să restartez?
@@ -211,7 +246,17 @@ Integrarea folosește formatul numeric românesc: punctul separă miile, virgula
 
 Nu. Integrarea se reîncarcă automat când salvezi modificările din fluxul de opțiuni. Nu este necesar un restart manual al Home Assistant.
 
-De asemenea, dacă modifici credențialele (username, parolă) sau codul de încasare din opțiuni, integrarea validează autentificarea înainte de a salva — dacă noile date sunt greșite, vei primi o eroare și configurația existentă rămâne neschimbată.
+De asemenea, dacă modifici credențialele (username, parolă) din opțiuni, integrarea validează autentificarea înainte de a salva — dacă noile date sunt greșite, vei primi o eroare și configurația existentă rămâne neschimbată.
+
+---
+
+## Trebuie să șterg și readaug integrarea la actualizare?
+
+[↑ Înapoi la cuprins](#top)
+
+De regulă nu. Setările sunt stocate în baza de date HA, nu în fișiere. Actualizarea suprascrie doar codul.
+
+**Excepție v3.0.0:** Dacă actualizezi de la v1/v2 la v3, integrarea include migrare automată care convertește formatul vechi (un singur cod de încasare) în formatul nou (listă de contracte). Nu trebuie să faci nimic manual. Dacă totuși apar probleme, șterge integrarea și readaug-o.
 
 ---
 
