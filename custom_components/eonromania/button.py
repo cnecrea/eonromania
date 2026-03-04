@@ -27,8 +27,12 @@ async def async_setup_entry(
         config_entry.entry_id,
     )
 
-    coordinator: EonRomaniaCoordinator = config_entry.runtime_data.coordinator
-    async_add_entities([TrimiteIndexButton(coordinator, config_entry)])
+    entities = []
+    for cod_incasare, coordinator in config_entry.runtime_data.coordinators.items():
+        entities.append(TrimiteIndexButton(coordinator, config_entry))
+
+    if entities:
+        async_add_entities(entities)
 
 
 class TrimiteIndexButton(CoordinatorEntity[EonRomaniaCoordinator], ButtonEntity):
@@ -42,24 +46,21 @@ class TrimiteIndexButton(CoordinatorEntity[EonRomaniaCoordinator], ButtonEntity)
         """Inițializează butonul."""
         super().__init__(coordinator)
         self._config_entry = config_entry
-        self._cod_incasare = config_entry.data["cod_incasare"]
-        self._attr_name = "Trimite index gaz"
-        self._attr_unique_id = f"{DOMAIN}_trimite_index_gaz_{config_entry.entry_id}"
-        self._custom_entity_id = f"button.{DOMAIN}_{self._cod_incasare}_trimite_index_gaz"
+        self._cod_incasare = coordinator.cod_incasare
+        self._attr_name = f"Trimite index"
+        self._attr_unique_id = f"{DOMAIN}_trimite_index_{self._cod_incasare}"
+        self._custom_entity_id = f"button.{DOMAIN}_{self._cod_incasare}_trimite_index"
 
     @property
     def entity_id(self) -> str | None:
-        """Returnează ID-ul entității."""
         return self._custom_entity_id
 
     @entity_id.setter
     def entity_id(self, value: str) -> None:
-        """Setează ID-ul entității."""
         self._custom_entity_id = value
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Returnează informațiile despre dispozitiv."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._cod_incasare)},
             name=f"E·ON România ({self._cod_incasare})",
@@ -92,15 +93,16 @@ class TrimiteIndexButton(CoordinatorEntity[EonRomaniaCoordinator], ButtonEntity)
                 )
                 return
 
-            # Obține ablbelnr din datele coordinatorului
-            citireindex_data = self.coordinator.data.get("citireindex") if self.coordinator.data else None
+            # Obține datele contorului din coordinator
+            citireindex_data = self.coordinator.data.get("meter_index") if self.coordinator.data else None
             if not citireindex_data or not isinstance(citireindex_data, dict):
                 _LOGGER.error(
-                    "Nu există datele de citire index (citireindex). Nu se poate trimite indexul (contract=%s).",
+                    "Nu există datele de citire index (meter_index). Nu se poate trimite indexul (contract=%s).",
                     cod_incasare,
                 )
                 return
 
+            # Extrage ablbelnr din primul dispozitiv
             ablbelnr = None
             devices = citireindex_data.get("indexDetails", {}).get("devices", [])
             for device in devices:
@@ -111,7 +113,7 @@ class TrimiteIndexButton(CoordinatorEntity[EonRomaniaCoordinator], ButtonEntity)
 
             if not ablbelnr:
                 _LOGGER.error(
-                    "Nu a fost găsit ID-ul intern al contorului (ablbelnr/SAP). Nu se poate trimite indexul (contract=%s).",
+                    "Nu a fost găsit ID-ul intern al contorului (ablbelnr). Nu se poate trimite indexul (contract=%s).",
                     cod_incasare,
                 )
                 return
@@ -123,11 +125,17 @@ class TrimiteIndexButton(CoordinatorEntity[EonRomaniaCoordinator], ButtonEntity)
                 ablbelnr,
             )
 
-            # Apelează metoda din API client (returnează None la eșec)
-            result = await self.coordinator.api_client.async_trimite_index(
+            # Construim payload-ul conform noului format API
+            indexes_payload = [
+                {
+                    "ablbelnr": ablbelnr,
+                    "indexValue": index_value,
+                }
+            ]
+
+            result = await self.coordinator.api_client.async_submit_meter_index(
                 account_contract=cod_incasare,
-                ablbelnr=ablbelnr,
-                index_value=index_value,
+                indexes=indexes_payload,
             )
 
             if result is None:
