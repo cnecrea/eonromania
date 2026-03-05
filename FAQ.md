@@ -3,9 +3,11 @@
 
 - [Cum adaug integrarea în Home Assistant?](#cum-adaug-integrarea-în-home-assistant)
 - [Am cont DUO. Pot folosi integrarea?](#am-cont-duo-pot-folosi-integrarea)
+- [Ce senzori primesc pentru un contract DUO?](#ce-senzori-primesc-pentru-un-contract-duo)
 - [Ce înseamnă „index curent"?](#ce-înseamnă-index-curent)
 - [Nu îmi apare indexul curent. De ce?](#nu-îmi-apare-indexul-curent-de-ce)
 - [Nu îmi apare senzorul „Citire permisă". De ce?](#nu-îmi-apare-senzorul-citire-permisă-de-ce)
+- [Senzorul „Citire permisă" arată „Nu" deși sunt în perioada de citire. De ce?](#senzorul-citire-permisă-arată-nu-deși-sunt-în-perioada-de-citire-de-ce)
 - [Ce înseamnă senzorul „Factură restantă prosumator"?](#ce-înseamnă-senzorul-factură-restantă-prosumator)
 - [Nu sunt prosumator. Senzorul de prosumator îmi afișează „Nu" — e normal?](#nu-sunt-prosumator-senzorul-de-prosumator-îmi-afișează-nu--e-normal)
 - [Ce înseamnă senzorul „Sold factură"?](#ce-înseamnă-senzorul-sold-factură)
@@ -40,17 +42,38 @@ Detalii complete în [SETUP.md](./SETUP.md).
 
 [↑ Înapoi la cuprins](#top)
 
-Da, iar în versiunea 3.0.0 e mai simplu ca niciodată. Integrarea descoperă automat toate contractele asociate contului tău la pasul de selectare.
+Da. Integrarea detectează automat contractele colective/DUO și le tratează corespunzător.
 
 Iată cum procedezi:
 
 1. Adaugă integrarea cu email-ul și parola contului E·ON Myline.
-2. La pasul 2 (selectare contracte), vei vedea toate contractele cu adresele complete — inclusiv ambele servicii DUO (gaz + electricitate).
-3. Selectează-le pe ambele (sau bifează „Selectează toate contractele").
+2. La pasul 2 (selectare contracte), vei vedea toate contractele cu adresele complete — inclusiv contractul DUO etichetat cu `(Colectiv/DUO)`.
+3. Selectează-l.
 
-Fiecare contract va genera un device separat cu senzorii proprii. Integrarea detectează automat tipul contractului (gaz sau electricitate) și adaptează denumirile senzorilor.
+Integrarea va:
+- Descoperi automat subcontractele (gaz + electricitate) prin endpoint-ul `account-contracts/list`
+- Obține detalii, index contor, și convenție consum **per subcontract**, în paralel
+- Crea senzori dedicați per subcontract (Index gaz, Index energie electrică, Citire permisă gaz, Citire permisă electricitate)
+- Afișa în Date contract toate detaliile DUO: subcontracte, prețuri, OD, NLC, POD, citiri contor
 
-> **Notă:** În versiunile anterioare (v1/v2), trebuia să adaugi integrarea de două ori, cu câte un cod de încasare. Acum, un singur cont gestionează toate contractele simultan.
+---
+
+## Ce senzori primesc pentru un contract DUO?
+
+[↑ Înapoi la cuprins](#top)
+
+Un contract DUO generează:
+
+**Senzori de bază** (pe contractul colectiv):
+- Date contract — cu atribute detaliate per subcontract (gaz + electricitate)
+- Sold factură, Sold prosumator, Factură restantă, Factură prosumator
+- Convenție consum — cu valori lunare per utilitate (gaz separat, electricitate separat)
+
+**Senzori per subcontract** (pe codurile individuale de gaz și electricitate):
+- Index gaz / Index energie electrică — valoarea indexului per subcontract
+- Citire permisă gaz / Citire permisă electricitate — starea perioadei de citire per subcontract
+
+Entity ID-urile senzorilor per subcontract folosesc codul subcontractului, nu codul colectiv. Exemplu: `sensor.eonromania_002100234567_index_gaz`.
 
 ---
 
@@ -99,6 +122,19 @@ Același motiv ca la indexul curent — senzorul „Citire permisă" depinde de 
 
 ---
 
+## Senzorul „Citire permisă" arată „Nu" deși sunt în perioada de citire. De ce?
+
+[↑ Înapoi la cuprins](#top)
+
+Acest lucru a fost corectat în versiunea curentă. Senzorul folosește acum indicatorul `readingPeriod.inPeriod` direct de la API (cel mai fiabil), cu fallback pe `readingPeriod.allowedReading` și apoi pe calculul manual cu `startDate` / `endDate`.
+
+Dacă senzorul tot arată „Nu" deși ești în perioada de citire:
+1. Verifică atributele secundare ale senzorului — ar trebui să vezi „În perioadă de citire: Da" și „Citire autorizată: Da"
+2. Dacă atributele lipsesc, API-ul E·ON nu furnizează date pentru acel contract — posibil contract inactiv
+3. Activează debug logging ([DEBUG.md](DEBUG.md)) și verifică răspunsul endpoint-ului `meter_index`
+
+---
+
 ## Ce înseamnă senzorul „Factură restantă prosumator"?
 
 [↑ Înapoi la cuprins](#top)
@@ -125,15 +161,20 @@ Absolut normal. Dacă nu ai contract de prosumator, API-ul E·ON nu returnează 
 
 [↑ Înapoi la cuprins](#top)
 
-Senzorul „Sold factură" (`sensor.eonromania_{cod}_sold_factura`) afișează soldul curent al contului tău de consum. Atributele sunt traduse automat din API în română:
+Senzorul „Sold factură" (`sensor.eonromania_{cod}_sold_factura`) indică dacă ai un sold de plată activ:
 
-- **Sold** — suma totală de plată sau credit
+- **Da** — ai o sumă de plată (datorie). Verifică atributele pentru detalii.
+- **Nu** — nu ai sold de plată (zero sau credit).
+
+Atributele sunt traduse automat din API în română:
+
+- **Sold** — suma totală de plată sau credit (format românesc: 1.234,56 lei)
 - **Sold de plată** — Da/Nu (indică dacă ai de plătit)
 - **Rambursare disponibilă** — Da/Nu (dacă poți solicita rambursare)
 - **Garanție activă** — Da/Nu
 - **Data sold** — data la care a fost calculat soldul
 
-Valorile booleene (true/false) sunt traduse automat în Da/Nu, iar sumele sunt afișate în format românesc (1.234,56 lei).
+Valorile booleene (true/false) sunt traduse automat în Da/Nu, iar sumele sunt afișate în format românesc.
 
 ---
 
@@ -146,11 +187,11 @@ Integrarea setează manual `entity_id`-ul fiecărei entități, incluzând codul
 - `sensor.eonromania_{cod_incasare}_{tip_senzor}`
 - `button.eonromania_{cod_incasare}_{tip_buton}`
 
-De exemplu, pentru un contract de gaz cu codul `002103870166`:
-- `sensor.eonromania_002103870166_index_gaz`
-- `sensor.eonromania_002103870166_date_contract`
-- `sensor.eonromania_002103870166_sold_factura`
-- `button.eonromania_002103870166_trimite_index`
+De exemplu, pentru un contract de gaz cu codul `004412345678`:
+- `sensor.eonromania_004412345678_index_gaz`
+- `sensor.eonromania_004412345678_date_contract`
+- `sensor.eonromania_004412345678_sold_factura`
+- `button.eonromania_004412345678_trimite_index`
 
 Avantajul principal: dacă ai mai multe contracte monitorizate simultan, fiecare entitate are un ID unic, fără conflicte.
 
@@ -160,9 +201,9 @@ Avantajul principal: dacă ai mai multe contracte monitorizate simultan, fiecare
 
 [↑ Înapoi la cuprins](#top)
 
-Da. Începând cu versiunea 3.0.0, integrarea suportă **multi-contract**. Un singur cont E·ON poate monitoriza oricâte coduri de încasare dorești.
+Da. Integrarea suportă **multi-contract**. Un singur cont E·ON poate monitoriza oricâte coduri de încasare dorești, inclusiv contracte DUO.
 
-La pasul de configurare, selectezi contractele dorite (sau le selectezi pe toate). Fiecare contract generează un device separat cu senzorii proprii, iar datele se actualizează în paralel (toate cele 11 endpoint-uri per contract, simultan).
+La pasul de configurare, selectezi contractele dorite (sau le selectezi pe toate). Fiecare contract generează un device separat cu senzorii proprii, iar datele se actualizează în paralel.
 
 ---
 
@@ -219,14 +260,14 @@ actions:
         sequence:
           - action: button.press
             target:
-              entity_id: button.eonromania_002103870166_trimite_index
+              entity_id: button.eonromania_004412345678_trimite_index
 ```
 
 **Ce face:**
 - În **ziua 9** a fiecărei luni, la **09:00**, primești o notificare cu indexul curent.
 - La **12:00**, integrarea trimite automat indexul către E·ON.
 
-> **⚠️ Important:** Înlocuiește `002103870166` cu codul tău real de încasare (12 cifre) și `notify.mobile_app_telefonul_meu` cu entity_id-ul serviciului tău de notificare. Entity_id-urile exacte le găsești în **Setări** → **Dispozitive și Servicii** → **E·ON România**.
+> **⚠️ Important:** Înlocuiește `004412345678` cu codul tău real de încasare (12 cifre) și `notify.mobile_app_telefonul_meu` cu entity_id-ul serviciului tău de notificare. Entity_id-urile exacte le găsești în **Setări** → **Dispozitive și Servicii** → **E·ON România**.
 
 ---
 
