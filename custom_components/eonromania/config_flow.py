@@ -25,6 +25,7 @@ from homeassistant.helpers.selector import (
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
 from .api import EonApiClient
 from .helpers import (
+    build_contract_metadata,
     build_contract_options,
     resolve_selection,
 )
@@ -120,6 +121,7 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "update_interval": self._update_interval,
                         "select_all": select_all,
                         "selected_contracts": final_selection,
+                        "contract_metadata": build_contract_metadata(self._contracts_raw),
                     },
                 )
 
@@ -243,6 +245,7 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
                         "update_interval": self._update_interval,
                         "select_all": select_all,
                         "selected_contracts": final_selection,
+                        "contract_metadata": build_contract_metadata(self._contracts_raw),
                     },
                 )
 
