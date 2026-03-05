@@ -280,6 +280,7 @@ def build_contract_options(contracts: list[dict]) -> list[SelectOptionDict]:
         # Tip utilitate
         utility = safe_str(c.get("utilityType"))
         utility_label = {
+            "00": "DUO (gaz + curent)",
             "01": "Electricitate",
             "02": "Gaz",
         }.get(utility, "")
@@ -311,6 +312,33 @@ def extract_all_contracts(contracts: list[dict]) -> list[str]:
             if ac and ac not in result:
                 result.append(ac)
     return result
+
+
+def build_contract_metadata(contracts: list[dict]) -> dict[str, dict]:
+    """Construiește un dict cu metadatele relevante per contract.
+
+    Returnează: {accountContract: {"utility_type": "00"|"01"|"02", "is_collective": bool}}
+    """
+    metadata: dict[str, dict] = {}
+    for c in contracts or []:
+        if not isinstance(c, dict):
+            continue
+        ac = (c.get("accountContract") or "").strip()
+        if not ac:
+            continue
+        utility_type = (c.get("utilityType") or "").strip()
+        # Contract colectiv/DUO: utilityType "00", type "98", sau isCollectiveContract true
+        is_collective = (
+            utility_type == "00"
+            or str(c.get("type", "")).strip() == "98"
+            or c.get("isCollectiveContract") is True
+            or c.get("collectiveContract") is True
+        )
+        metadata[ac] = {
+            "utility_type": utility_type,
+            "is_collective": is_collective,
+        }
+    return metadata
 
 
 def resolve_selection(
