@@ -53,7 +53,8 @@ class EonApiClient:
         self._token_obtained_at: float = 0.0
 
         self._timeout = ClientTimeout(total=API_TIMEOUT)
-        self._login_lock = asyncio.Lock()
+        self._auth_lock = asyncio.Lock()
+        self._token_generation: int = 0
 
     # ──────────────────────────────────────────
     # Proprietăți publice
@@ -83,60 +84,48 @@ class EonApiClient:
     # ──────────────────────────────────────────
 
     async def async_login(self) -> bool:
-        """Obține un token nou de autentificare prin mobile-login (thread-safe cu lock)."""
-        async with self._login_lock:
-            # Double-check: dacă alt apel a obținut deja un token proaspăt
-            if self._access_token is not None and self.is_token_likely_valid():
-                _LOGGER.debug("[LOGIN] Token deja disponibil (obținut de alt apel concurent).")
-                return True
+        """Obține un token nou de autentificare prin mobile-login (fără lock — se apelează din _ensure_token_valid)."""
+        verify = generate_verify_hmac(self._username, AUTH_VERIFY_SECRET)
+        payload = {
+            "username": self._username,
+            "password": self._password,
+            "verify": verify,
+        }
 
-            verify = generate_verify_hmac(self._username, AUTH_VERIFY_SECRET)
-            payload = {
-                "username": self._username,
-                "password": self._password,
-                "verify": verify,
-            }
+        _LOGGER.debug("[LOGIN] Trimitere cerere: URL=%s", URL_LOGIN)
 
-            _LOGGER.debug("[LOGIN] Trimitere cerere: URL=%s", URL_LOGIN)
+        try:
+            async with self._session.post(
+                URL_LOGIN, json=payload, headers=HEADERS, timeout=self._timeout
+            ) as resp:
+                response_text = await resp.text()
+                _LOGGER.debug("[LOGIN] Răspuns: Status=%s, Body=%s", resp.status, response_text)
 
-            try:
-                async with self._session.post(
-                    URL_LOGIN, json=payload, headers=HEADERS, timeout=self._timeout
-                ) as resp:
-                    response_text = await resp.text()
-                    _LOGGER.debug("[LOGIN] Răspuns: Status=%s, Body=%s", resp.status, response_text)
+                if resp.status == 200:
+                    data = await resp.json()
+                    self._apply_token_data(data)
+                    _LOGGER.debug("[LOGIN] Token obținut cu succes (expires_in=%s).", self._expires_in)
+                    return True
 
-                    if resp.status == 200:
-                        data = await resp.json()
-                        self._access_token = data.get("access_token")
-                        self._token_type = data.get("token_type", "Bearer")
-                        self._expires_in = data.get("expires_in", 3600)
-                        self._refresh_token = data.get("refresh_token")
-                        self._id_token = data.get("idToken")  # camelCase conform API real
-                        self._uuid = data.get("uuid")
-                        self._token_obtained_at = time.monotonic()
-                        _LOGGER.debug("[LOGIN] Token obținut cu succes (expires_in=%s).", self._expires_in)
-                        return True
-
-                    _LOGGER.error(
-                        "[LOGIN] Eroare autentificare. Cod HTTP=%s, Răspuns=%s",
-                        resp.status,
-                        response_text,
-                    )
-                    self._invalidate_tokens()
-                    return False
-
-            except asyncio.TimeoutError:
-                _LOGGER.error("[LOGIN] Depășire de timp.")
+                _LOGGER.error(
+                    "[LOGIN] Eroare autentificare. Cod HTTP=%s, Răspuns=%s",
+                    resp.status,
+                    response_text,
+                )
                 self._invalidate_tokens()
                 return False
-            except Exception as e:
-                _LOGGER.error("[LOGIN] Eroare: %s", e)
-                self._invalidate_tokens()
-                return False
+
+        except asyncio.TimeoutError:
+            _LOGGER.error("[LOGIN] Depășire de timp.")
+            self._invalidate_tokens()
+            return False
+        except Exception as e:
+            _LOGGER.error("[LOGIN] Eroare: %s", e)
+            self._invalidate_tokens()
+            return False
 
     async def async_refresh_token(self) -> bool:
-        """Reîmprospătează tokenul de acces folosind refresh_token."""
+        """Reîmprospătează tokenul de acces folosind refresh_token (fără lock — se apelează din _ensure_token_valid)."""
         if not self._refresh_token:
             _LOGGER.debug("[REFRESH] Nu există refresh_token. Se va face login complet.")
             return False
@@ -154,13 +143,7 @@ class EonApiClient:
 
                 if resp.status == 200:
                     data = await resp.json()
-                    self._access_token = data.get("access_token")
-                    self._token_type = data.get("token_type", "Bearer")
-                    self._expires_in = data.get("expires_in", 3600)
-                    self._refresh_token = data.get("refresh_token")
-                    self._id_token = data.get("idToken")  # camelCase conform API real
-                    self._uuid = data.get("uuid")
-                    self._token_obtained_at = time.monotonic()
+                    self._apply_token_data(data)
                     _LOGGER.debug("[REFRESH] Token reîmprospătat cu succes (expires_in=%s).", self._expires_in)
                     return True
 
@@ -178,6 +161,17 @@ class EonApiClient:
             _LOGGER.error("[REFRESH] Eroare: %s", e)
             return False
 
+    def _apply_token_data(self, data: dict) -> None:
+        """Aplică datele de token din răspunsul API (login sau refresh)."""
+        self._access_token = data.get("access_token")
+        self._token_type = data.get("token_type", "Bearer")
+        self._expires_in = data.get("expires_in", 3600)
+        self._refresh_token = data.get("refresh_token")
+        self._id_token = data.get("idToken")  # camelCase conform API real
+        self._uuid = data.get("uuid")
+        self._token_obtained_at = time.monotonic()
+        self._token_generation += 1
+
     def invalidate_token(self) -> None:
         """Invalidează tokenul curent (pentru a forța re-autentificare)."""
         self._access_token = None
@@ -192,19 +186,33 @@ class EonApiClient:
         self._token_obtained_at = 0.0
 
     async def _ensure_token_valid(self) -> bool:
-        """Asigură că există un token valid — refresh sau login complet."""
+        """
+        Asigură că există un token valid — refresh sau login complet.
+
+        Thread-safe: folosește _auth_lock pentru a preveni refresh-uri/login-uri
+        concurente. Când mai multe request-uri paralele au nevoie de token nou,
+        doar primul face refresh/login, restul reutilizează rezultatul.
+        """
+        # Fast path fără lock: token deja valid
         if self.is_token_likely_valid():
             return True
 
-        # Încearcă refresh dacă avem refresh_token
-        if self._refresh_token:
-            if await self.async_refresh_token():
+        async with self._auth_lock:
+            # Double-check după ce am obținut lock-ul:
+            # alt apel concurent poate fi deja reînnoit tokenul
+            if self.is_token_likely_valid():
+                _LOGGER.debug("[AUTH] Token deja disponibil (obținut de alt apel concurent).")
                 return True
-            _LOGGER.debug("Refresh token eșuat. Se încearcă login complet.")
 
-        # Fallback la login complet
-        self._invalidate_tokens()
-        return await self.async_login()
+            # Încearcă refresh dacă avem refresh_token
+            if self._refresh_token:
+                if await self.async_refresh_token():
+                    return True
+                _LOGGER.debug("[AUTH] Refresh token eșuat. Se încearcă login complet.")
+
+            # Fallback la login complet
+            self._invalidate_tokens()
+            return await self.async_login()
 
     # ──────────────────────────────────────────
     # Contracte
@@ -368,6 +376,7 @@ class EonApiClient:
             _LOGGER.error("[%s] Token invalid. Trimiterea nu poate fi efectuată.", label)
             return None
 
+        gen_before = self._token_generation
         headers = {**HEADERS, "Authorization": f"{self._token_type} {self._access_token}"}
 
         _LOGGER.debug("[%s] Trimitere cerere: URL=%s, Payload=%s", label, URL_METER_SUBMIT, json.dumps(payload))
@@ -387,24 +396,30 @@ class EonApiClient:
                     return await resp.json()
 
                 if resp.status == 401:
-                    _LOGGER.warning("[%s] Token invalid (401). Se reîncearcă...", label)
-                    self.invalidate_token()
-                    if await self._ensure_token_valid():
-                        headers_retry = {**HEADERS, "Authorization": f"{self._token_type} {self._access_token}"}
-                        async with self._session.post(
-                            URL_METER_SUBMIT,
-                            json=payload,
-                            headers=headers_retry,
-                            timeout=self._timeout,
-                        ) as resp_retry:
-                            response_text_retry = await resp_retry.text()
-                            _LOGGER.debug("[%s] Reîncercare: Status=%s, Body=%s", label, resp_retry.status, response_text_retry)
-                            if resp_retry.status == 200:
-                                _LOGGER.debug("[%s] Index trimis cu succes (după reautentificare).", label)
-                                return await resp_retry.json()
-                            _LOGGER.error("[%s] Reîncercare eșuată. Cod HTTP=%s", label, resp_retry.status)
+                    # Verifică dacă alt apel a reînnoit deja tokenul
+                    if self._token_generation != gen_before:
+                        _LOGGER.debug("[%s] Token reînnoit de alt apel. Se reîncearcă.", label)
+                    else:
+                        _LOGGER.warning("[%s] Token invalid (401). Se reîncearcă...", label)
+                        self.invalidate_token()
+                        if not await self._ensure_token_valid():
+                            _LOGGER.error("[%s] Reautentificare eșuată.", label)
                             return None
-                    return None
+
+                    headers_retry = {**HEADERS, "Authorization": f"{self._token_type} {self._access_token}"}
+                    async with self._session.post(
+                        URL_METER_SUBMIT,
+                        json=payload,
+                        headers=headers_retry,
+                        timeout=self._timeout,
+                    ) as resp_retry:
+                        response_text_retry = await resp_retry.text()
+                        _LOGGER.debug("[%s] Reîncercare: Status=%s, Body=%s", label, resp_retry.status, response_text_retry)
+                        if resp_retry.status == 200:
+                            _LOGGER.debug("[%s] Index trimis cu succes (după reautentificare).", label)
+                            return await resp_retry.json()
+                        _LOGGER.error("[%s] Reîncercare eșuată. Cod HTTP=%s", label, resp_retry.status)
+                        return None
 
                 _LOGGER.error("[%s] Eroare. Cod HTTP=%s, Răspuns=%s", label, resp.status, response_text)
                 return None
@@ -423,25 +438,34 @@ class EonApiClient:
     async def _request_with_token(self, method: str, url: str, label: str = "request"):
         """
         Cerere cu gestionare automată a tokenului.
-        1. Asigură token valid
+
+        1. Asigură token valid (protejat de _auth_lock)
         2. Execută cererea
-        3. La 401: refresh/login + reîncearcă
+        3. La 401: verifică dacă alt apel a reînnoit deja tokenul, altfel refresh/login + reîncearcă
         """
         if not await self._ensure_token_valid():
             _LOGGER.error("[%s] Nu s-a putut obține un token valid.", label)
             return None
+
+        # Memorează generația tokenului înainte de request
+        gen_before = self._token_generation
 
         # Prima încercare
         resp_data, status = await self._do_request(method, url, label)
         if status != 401:
             return resp_data
 
-        # 401 → refresh token
-        _LOGGER.warning("[%s] Cod HTTP=401 → se reîncearcă cu refresh token.", label)
-        self.invalidate_token()
-        if not await self._ensure_token_valid():
-            _LOGGER.error("[%s] Reautentificare eșuată.", label)
-            return None
+        # 401 → verifică dacă alt apel concurent a reînnoit deja tokenul
+        if self._token_generation != gen_before:
+            # Tokenul a fost reînnoit de alt apel între timp — reîncearcă direct
+            _LOGGER.debug("[%s] Cod HTTP=401, dar tokenul a fost deja reînnoit (gen %s→%s). Se reîncearcă.", label, gen_before, self._token_generation)
+        else:
+            # Tokenul nu a fost reînnoit — forțăm refresh/login
+            _LOGGER.warning("[%s] Cod HTTP=401 → se reîncearcă cu refresh token.", label)
+            self.invalidate_token()
+            if not await self._ensure_token_valid():
+                _LOGGER.error("[%s] Reautentificare eșuată.", label)
+                return None
 
         # A doua încercare
         resp_data, status = await self._do_request(method, url, label)
@@ -500,6 +524,7 @@ class EonApiClient:
             query_parts.append(f"page={page}")
             url = f"{base_url}?{'&'.join(query_parts)}"
 
+            gen_before = self._token_generation
             headers = {**HEADERS, "Authorization": f"{self._token_type} {self._access_token}"}
 
             _LOGGER.debug("[%s] Pagină %s: %s", label, page, url)
@@ -528,12 +553,16 @@ class EonApiClient:
                         continue
 
                     if resp.status == 401 and not retried:
-                        _LOGGER.warning("[%s] Token expirat (pagină %s). Se reîncearcă...", label, page)
-                        self.invalidate_token()
-                        if await self._ensure_token_valid():
-                            retried = True
-                            continue
-                        return results if results else None
+                        # Verifică dacă alt apel a reînnoit deja tokenul
+                        if self._token_generation != gen_before:
+                            _LOGGER.debug("[%s] Token reînnoit de alt apel (pagină %s). Se reîncearcă.", label, page)
+                        else:
+                            _LOGGER.warning("[%s] Token expirat (pagină %s). Se reîncearcă...", label, page)
+                            self.invalidate_token()
+                            if not await self._ensure_token_valid():
+                                return results if results else None
+                        retried = True
+                        continue
 
                     _LOGGER.error("[%s] Eroare: Cod HTTP=%s (pagină %s), Răspuns=%s", label, resp.status, page, response_text)
                     break
