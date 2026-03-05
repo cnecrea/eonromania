@@ -11,6 +11,12 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import EonRomaniaCoordinator
+from .helpers import (
+    UTILITY_BUTTON_CONFIG,
+    detect_utility_type_individual,
+    extract_ablbelnr,
+    get_meter_data,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,29 +33,116 @@ async def async_setup_entry(
         config_entry.entry_id,
     )
 
-    entities = []
+    entities: list[ButtonEntity] = []
+
     for cod_incasare, coordinator in config_entry.runtime_data.coordinators.items():
-        entities.append(TrimiteIndexButton(coordinator, config_entry))
+        if coordinator.is_collective:
+            # ── Contract colectiv/DUO: un buton per subcontract ──
+            subcontracts_list = coordinator.data.get("subcontracts") if coordinator.data else None
+
+            if subcontracts_list and isinstance(subcontracts_list, list):
+                for s in subcontracts_list:
+                    if not isinstance(s, dict):
+                        continue
+                    sc_code = s.get("accountContract")
+                    utility_type = s.get("utilityType")
+                    if not sc_code or not utility_type:
+                        continue
+
+                    btn_config = UTILITY_BUTTON_CONFIG.get(utility_type)
+                    if not btn_config:
+                        _LOGGER.warning(
+                            "Tip utilitate necunoscut '%s' pentru subcontract %s (DUO %s). Buton ignorat.",
+                            utility_type, sc_code, cod_incasare,
+                        )
+                        continue
+
+                    entities.append(
+                        TrimiteIndexButton(
+                            coordinator=coordinator,
+                            config_entry=config_entry,
+                            account_contract=sc_code,
+                            utility_type=utility_type,
+                            is_subcontract=True,
+                        )
+                    )
+                    _LOGGER.debug(
+                        "Buton DUO creat: %s → %s (contract_principal=%s).",
+                        btn_config["label"], sc_code, cod_incasare,
+                    )
+            else:
+                _LOGGER.warning(
+                    "Contract DUO fără subcontracte disponibile (contract=%s). Nu se creează butoane.",
+                    cod_incasare,
+                )
+        else:
+            # ── Contract individual: un singur buton ──
+            utility_type = detect_utility_type_individual(coordinator.data)
+            btn_config = UTILITY_BUTTON_CONFIG.get(utility_type)
+            if not btn_config:
+                _LOGGER.warning(
+                    "Tip utilitate necunoscut '%s' pentru contract individual %s. Se folosește fallback gaz.",
+                    utility_type, cod_incasare,
+                )
+                utility_type = "02"
+
+            entities.append(
+                TrimiteIndexButton(
+                    coordinator=coordinator,
+                    config_entry=config_entry,
+                    account_contract=cod_incasare,
+                    utility_type=utility_type,
+                    is_subcontract=False,
+                )
+            )
 
     if entities:
         async_add_entities(entities)
+        _LOGGER.debug(
+            "Platforma button: %s butoane create (entry_id=%s).",
+            len(entities), config_entry.entry_id,
+        )
 
 
 class TrimiteIndexButton(CoordinatorEntity[EonRomaniaCoordinator], ButtonEntity):
-    """Buton pentru trimiterea indexului."""
+    """Buton pentru trimiterea indexului — suportă atât contracte individuale cât și DUO."""
 
     _attr_has_entity_name = False
-    _attr_icon = "mdi:counter"
-    _attr_translation_key = "trimite_index"
 
-    def __init__(self, coordinator: EonRomaniaCoordinator, config_entry: ConfigEntry):
-        """Inițializează butonul."""
+    def __init__(
+        self,
+        coordinator: EonRomaniaCoordinator,
+        config_entry: ConfigEntry,
+        account_contract: str,
+        utility_type: str,
+        is_subcontract: bool = False,
+    ):
+        """Inițializează butonul.
+
+        Args:
+            coordinator: Coordinatorul E·ON pentru contractul principal.
+            config_entry: Intrarea de configurare.
+            account_contract: Codul de încasare (contract principal sau subcontract).
+            utility_type: Tipul utilității ("01" = electricitate, "02" = gaz).
+            is_subcontract: True dacă butonul e pentru un subcontract DUO.
+        """
         super().__init__(coordinator)
         self._config_entry = config_entry
-        self._cod_incasare = coordinator.cod_incasare
-        self._attr_name = f"Trimite index"
-        self._attr_unique_id = f"{DOMAIN}_trimite_index_{self._cod_incasare}"
-        self._custom_entity_id = f"button.{DOMAIN}_{self._cod_incasare}_trimite_index"
+        self._account_contract = account_contract
+        self._utility_type = utility_type
+        self._is_subcontract = is_subcontract
+        self._cod_incasare = coordinator.cod_incasare  # contractul principal (pentru device)
+
+        # Configurația din mapare
+        btn_config = UTILITY_BUTTON_CONFIG.get(utility_type, UTILITY_BUTTON_CONFIG["02"])
+        self._input_number_entity = btn_config["input_number"]
+        self._attr_name = btn_config["label"]
+        self._attr_icon = btn_config["icon"]
+        self._attr_translation_key = btn_config["translation_key"]
+
+        # Entity ID și unique_id
+        self._attr_unique_id = f"{DOMAIN}_trimite_index_{account_contract}"
+        self._custom_entity_id = f"button.{DOMAIN}_{account_contract}_{btn_config['suffix']}"
 
     @property
     def entity_id(self) -> str | None:
@@ -71,61 +164,50 @@ class TrimiteIndexButton(CoordinatorEntity[EonRomaniaCoordinator], ButtonEntity)
 
     async def async_press(self):
         """Execută trimiterea indexului."""
-        cod_incasare = self._cod_incasare
+        ac = self._account_contract
+        utility_label = UTILITY_BUTTON_CONFIG.get(self._utility_type, {}).get("label", "necunoscut")
 
         try:
-            # Obține indexValue din input_number
-            gas_meter_state = self.hass.states.get("input_number.gas_meter_reading")
-            if not gas_meter_state:
+            # 1. Citește valoarea din input_number
+            input_state = self.hass.states.get(self._input_number_entity)
+            if not input_state:
                 _LOGGER.error(
-                    "Nu există entitatea input_number.gas_meter_reading. Nu se poate trimite indexul (contract=%s).",
-                    cod_incasare,
+                    "Nu există entitatea %s. Nu se poate trimite indexul "
+                    "(contract=%s, tip=%s).",
+                    self._input_number_entity, ac, utility_label,
                 )
                 return
 
             try:
-                index_value = int(float(gas_meter_state.state))
+                index_value = int(float(input_state.state))
             except (TypeError, ValueError):
                 _LOGGER.error(
-                    "Valoare invalidă pentru input_number.gas_meter_reading: %s (contract=%s).",
-                    gas_meter_state.state,
-                    cod_incasare,
+                    "Valoare invalidă pentru %s: '%s' (contract=%s, tip=%s).",
+                    self._input_number_entity, input_state.state,
+                    ac, utility_label,
                 )
                 return
 
-            # Obține datele contorului din coordinator
-            citireindex_data = self.coordinator.data.get("meter_index") if self.coordinator.data else None
-            if not citireindex_data or not isinstance(citireindex_data, dict):
-                _LOGGER.error(
-                    "Nu există datele de citire index (meter_index). Nu se poate trimite indexul (contract=%s).",
-                    cod_incasare,
-                )
-                return
-
-            # Extrage ablbelnr din primul dispozitiv
-            ablbelnr = None
-            devices = citireindex_data.get("indexDetails", {}).get("devices", [])
-            for device in devices:
-                indexes = device.get("indexes", [])
-                if indexes:
-                    ablbelnr = indexes[0].get("ablbelnr")
-                    break
+            # 2. Obține datele contorului (ablbelnr)
+            meter_data = get_meter_data(
+                self.coordinator.data, ac, is_subcontract=self._is_subcontract
+            )
+            ablbelnr = extract_ablbelnr(meter_data)
 
             if not ablbelnr:
                 _LOGGER.error(
-                    "Nu a fost găsit ID-ul intern al contorului (ablbelnr). Nu se poate trimite indexul (contract=%s).",
-                    cod_incasare,
+                    "Nu a fost găsit ID-ul intern al contorului (ablbelnr). "
+                    "Nu se poate trimite indexul (contract=%s, tip=%s).",
+                    ac, utility_label,
                 )
                 return
 
             _LOGGER.debug(
-                "Se trimite indexul: valoare=%s (contract=%s, ablbelnr=%s).",
-                index_value,
-                cod_incasare,
-                ablbelnr,
+                "Se trimite indexul: valoare=%s (contract=%s, tip=%s, ablbelnr=%s).",
+                index_value, ac, utility_label, ablbelnr,
             )
 
-            # Construim payload-ul conform noului format API
+            # 3. Construim payload-ul și trimitem
             indexes_payload = [
                 {
                     "ablbelnr": ablbelnr,
@@ -134,26 +216,27 @@ class TrimiteIndexButton(CoordinatorEntity[EonRomaniaCoordinator], ButtonEntity)
             ]
 
             result = await self.coordinator.api_client.async_submit_meter_index(
-                account_contract=cod_incasare,
+                account_contract=ac,
                 indexes=indexes_payload,
             )
 
             if result is None:
                 _LOGGER.error(
-                    "Trimiterea indexului a eșuat (contract=%s).",
-                    cod_incasare,
+                    "Trimiterea indexului a eșuat (contract=%s, tip=%s).",
+                    ac, utility_label,
                 )
                 return
 
+            # 4. Refresh date
             await self.coordinator.async_request_refresh()
 
             _LOGGER.info(
-                "Index trimis cu succes (contract=%s).",
-                cod_incasare,
+                "Index trimis cu succes: valoare=%s (contract=%s, tip=%s).",
+                index_value, ac, utility_label,
             )
 
         except Exception:
             _LOGGER.exception(
-                "Eroare neașteptată la trimiterea indexului (contract=%s).",
-                cod_incasare,
+                "Eroare neașteptată la trimiterea indexului (contract=%s, tip=%s).",
+                ac, utility_label,
             )
