@@ -351,3 +351,95 @@ def resolve_selection(
         return extract_all_contracts(contracts)
     return selected
 
+
+# ══════════════════════════════════════════════
+# Constante și helperi pentru butoane (trimitere index)
+# ══════════════════════════════════════════════
+
+# Mapare utility_type → configurație buton
+# utility_type "02" = Gaz, "01" = Electricitate
+UTILITY_BUTTON_CONFIG: dict[str, dict[str, str]] = {
+    "02": {
+        "suffix": "trimite_index_gaz",
+        "label": "Trimite index gaz",
+        "icon": "mdi:fire",
+        "input_number": "input_number.gas_meter_reading",
+        "translation_key": "trimite_index_gaz",
+    },
+    "01": {
+        "suffix": "trimite_index_energie_electrica",
+        "label": "Trimite index energie electrică",
+        "icon": "mdi:flash",
+        "input_number": "input_number.energy_meter_reading",
+        "translation_key": "trimite_index_energie_electrica",
+    },
+}
+
+# Fallback pentru contracte individuale (detectare din unitatea de măsură)
+UNIT_TO_UTILITY: dict[str, str] = {
+    "m3": "02",    # gaz
+    "kwh": "01",   # electricitate
+}
+
+
+def detect_utility_type_individual(coordinator_data: dict | None) -> str:
+    """Detectează utility_type pentru un contract individual din datele coordinator.
+
+    Folosește unitatea de măsură din graphic_consumption (um).
+    Returnează "02" (gaz) ca fallback.
+    """
+    if not coordinator_data:
+        return "02"
+    um = coordinator_data.get("um", "m3")
+    return UNIT_TO_UTILITY.get(um.lower(), "02")
+
+
+def get_subcontract_utility_type(
+    subcontracts_list: list[dict] | None, sc_code: str
+) -> str | None:
+    """Extrage utility_type pentru un subcontract din lista de subcontracte."""
+    if not subcontracts_list or not isinstance(subcontracts_list, list):
+        return None
+    for s in subcontracts_list:
+        if isinstance(s, dict) and s.get("accountContract") == sc_code:
+            return s.get("utilityType")
+    return None
+
+
+def get_meter_data(coordinator_data: dict | None, account_contract: str, is_subcontract: bool = False) -> dict | None:
+    """Obține datele meter_index pentru un contract sau subcontract.
+
+    Args:
+        coordinator_data: Dicționarul complet de date din coordinator.
+        account_contract: Codul de contract / subcontract.
+        is_subcontract: True dacă se caută în subcontracts_meter_index.
+
+    Returns:
+        Dicționarul meter_index sau None.
+    """
+    if not coordinator_data:
+        return None
+    if is_subcontract:
+        smi = coordinator_data.get("subcontracts_meter_index")
+        if smi and isinstance(smi, dict):
+            return smi.get(account_contract)
+        return None
+    return coordinator_data.get("meter_index")
+
+
+def extract_ablbelnr(meter_data: dict | None) -> str | None:
+    """Extrage ablbelnr (ID intern contor) din datele meter_index.
+
+    Parcurge devices → indexes și returnează primul ablbelnr găsit.
+    """
+    if not meter_data or not isinstance(meter_data, dict):
+        return None
+    devices = meter_data.get("indexDetails", {}).get("devices", [])
+    for device in devices:
+        indexes = device.get("indexes", [])
+        if indexes:
+            ablbelnr = indexes[0].get("ablbelnr")
+            if ablbelnr:
+                return ablbelnr
+    return None
+
