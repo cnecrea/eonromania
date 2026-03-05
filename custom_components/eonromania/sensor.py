@@ -3,6 +3,7 @@
 import logging
 from collections import defaultdict
 from datetime import datetime
+from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -73,43 +74,87 @@ def _build_sensors_for_coordinator(
     sensors: list[SensorEntity] = []
     cod_incasare = coordinator.cod_incasare
 
+    is_collective = coordinator.is_collective
+
     # ── 1. Senzori de bază (mereu prezenți) ──
     sensors.append(ContractDetailsSensor(coordinator, config_entry))
-    sensors.append(ConventieConsumSensor(coordinator, config_entry))
     sensors.append(FacturaRestantaSensor(coordinator, config_entry))
     sensors.append(FacturaProsumSensor(coordinator, config_entry))
     sensors.append(InvoiceBalanceSensor(coordinator, config_entry))
     sensors.append(InvoiceBalanceProsumSensor(coordinator, config_entry))
+
+    # Convenție consum — funcționează atât pe individuale cât și pe colective/DUO
+    sensors.append(ConventieConsumSensor(coordinator, config_entry))
 
     # ── 2. Senzori condiționali (date disponibile) ──
     if coordinator.data:
         if coordinator.data.get("rescheduling_plans"):
             sensors.append(ReschedulingPlansSensor(coordinator, config_entry))
 
-        pass  # placeholder for future conditional sensors
-
     # ── 3. CitireIndexSensor + CitirePermisaSensor (per dispozitiv) ──
-    citireindex_data = coordinator.data.get("meter_index") if coordinator.data else None
-    if citireindex_data:
-        devices = citireindex_data.get("indexDetails", {}).get("devices", [])
-        seen_devices: set[str] = set()
+    if not is_collective:
+        # Contract individual: un singur meter_index
+        citireindex_data = coordinator.data.get("meter_index") if coordinator.data else None
+        if citireindex_data:
+            devices = citireindex_data.get("indexDetails", {}).get("devices", [])
+            seen_devices: set[str] = set()
 
-        for device in devices:
-            device_number = device.get("deviceNumber", "unknown_device")
-            if device_number not in seen_devices:
-                sensors.append(CitireIndexSensor(coordinator, config_entry, device_number))
-                sensors.append(CitirePermisaSensor(coordinator, config_entry, device_number))
-                seen_devices.add(device_number)
-            else:
-                _LOGGER.warning("Dispozitiv duplicat ignorat (contract=%s): %s", cod_incasare, device_number)
+            for device in devices:
+                device_number = device.get("deviceNumber", "unknown_device")
+                if device_number not in seen_devices:
+                    sensors.append(CitireIndexSensor(coordinator, config_entry, device_number))
+                    sensors.append(CitirePermisaSensor(coordinator, config_entry, device_number))
+                    seen_devices.add(device_number)
+                else:
+                    _LOGGER.warning("Dispozitiv duplicat ignorat (contract=%s): %s", cod_incasare, device_number)
 
-        if not devices:
-            sensors.append(CitireIndexSensor(coordinator, config_entry, device_number=None))
-            sensors.append(CitirePermisaSensor(coordinator, config_entry, device_number=None))
+            if not devices:
+                sensors.append(CitireIndexSensor(coordinator, config_entry, device_number=None))
+                sensors.append(CitirePermisaSensor(coordinator, config_entry, device_number=None))
+    else:
+        # Contract colectiv/DUO: meter_index per subcontract
+        smi = coordinator.data.get("subcontracts_meter_index") if coordinator.data else None
+        subcontracts_list = coordinator.data.get("subcontracts") if coordinator.data else None
+        if smi and isinstance(smi, dict):
+            for sc_code, mi_data in smi.items():
+                if not isinstance(mi_data, dict):
+                    continue
+                # Determinăm utility_type din lista subcontractelor
+                utility_type = None
+                if subcontracts_list and isinstance(subcontracts_list, list):
+                    for s in subcontracts_list:
+                        if isinstance(s, dict) and s.get("accountContract") == sc_code:
+                            utility_type = s.get("utilityType")
+                            break
+                devices = mi_data.get("indexDetails", {}).get("devices", [])
+                if devices:
+                    seen_devices_duo: set[str] = set()
+                    for device in devices:
+                        device_number = device.get("deviceNumber", "unknown_device")
+                        if device_number not in seen_devices_duo:
+                            sensors.append(CitireIndexSensor(
+                                coordinator, config_entry, device_number,
+                                subcontract_code=sc_code, utility_type=utility_type,
+                            ))
+                            sensors.append(CitirePermisaSensor(
+                                coordinator, config_entry, device_number,
+                                subcontract_code=sc_code, utility_type=utility_type,
+                            ))
+                            seen_devices_duo.add(device_number)
+                else:
+                    sensors.append(CitireIndexSensor(
+                        coordinator, config_entry, device_number=None,
+                        subcontract_code=sc_code, utility_type=utility_type,
+                    ))
+                    sensors.append(CitirePermisaSensor(
+                        coordinator, config_entry, device_number=None,
+                        subcontract_code=sc_code, utility_type=utility_type,
+                    ))
 
     # ── 4. ArhivaSensor (per an) ──
+    # (nu se creează pentru contracte colective — endpoint-ul nu funcționează)
     arhiva_data = coordinator.data.get("meter_history") if coordinator.data else None
-    if arhiva_data:
+    if arhiva_data and not is_collective:
         history_list = arhiva_data.get("history", [])
         for item in history_list:
             year = item.get("year")
@@ -133,7 +178,8 @@ def _build_sensors_for_coordinator(
             sensors.append(ArhivaPlatiSensor(coordinator, config_entry, year))
 
     # ── 6. ArhivaComparareConsumAnualGraficSensor (per an) ──
-    comparareanualagrafic_data = coordinator.data.get("graphic_consumption", {}) if coordinator.data else {}
+    # (nu se creează pentru contracte colective — endpoint-ul nu funcționează)
+    comparareanualagrafic_data = coordinator.data.get("graphic_consumption", {}) if (coordinator.data and not is_collective) else {}
     if isinstance(comparareanualagrafic_data, dict) and "consumption" in comparareanualagrafic_data:
         yearly_data: dict[int, dict] = defaultdict(dict)
         for item in comparareanualagrafic_data["consumption"]:
@@ -189,6 +235,11 @@ async def async_setup_entry(
     async_add_entities(all_sensors)
 
 
+# ══════════════════════════════════════════════
+# SENZORI NOI
+# ══════════════════════════════════════════════
+
+
 # ──────────────────────────────────────────────
 # ContractDetailsSensor (înlocuiește DateContractSensor)
 # ──────────────────────────────────────────────
@@ -213,10 +264,21 @@ class ContractDetailsSensor(EonRomaniaEntity):
 
     @property
     def extra_state_attributes(self):
-        data = self.coordinator.data.get("contract_details") if self.coordinator.data else None
+        if not self.coordinator.data:
+            return {}
+
+        data = self.coordinator.data.get("contract_details")
         if not isinstance(data, dict):
             return {}
 
+        is_collective = self.coordinator.data.get("is_collective", False)
+
+        if is_collective:
+            return self._build_collective_attributes(data)
+        return self._build_individual_attributes(data)
+
+    def _build_individual_attributes(self, data: dict) -> dict[str, Any]:
+        """Construiește atributele pentru un contract individual (gaz sau curent)."""
         attributes: dict[str, Any] = {}
 
         # ─────────────────────────────
@@ -286,6 +348,170 @@ class ContractDetailsSensor(EonRomaniaEntity):
 
         return attributes
 
+    def _build_collective_attributes(self, data: dict) -> dict[str, Any]:
+        """Construiește atributele pentru un contract colectiv/DUO (gaz + curent)."""
+        attributes: dict[str, Any] = {}
+
+        UTILITY_TYPE_LABEL = {
+            "01": "Electricitate",
+            "02": "Gaz",
+        }
+
+        PORTFOLIO_LABEL = {
+            "GN": "Gaz Natural",
+            "EE": "Energie Electrică",
+        }
+
+        # ─────────────────────────────
+        # Date contract colectiv (din contract_details)
+        # ─────────────────────────────
+        if data.get("accountContract"):
+            attributes["Cod încasare (DUO)"] = data["accountContract"]
+
+        attributes["Tip contract"] = "Colectiv / DUO (gaz + curent)"
+
+        if data.get("contractName"):
+            attributes["Nume contract"] = data["contractName"]
+
+        # Adresă de corespondență (din contractul principal)
+        mailing = data.get("mailingAddress")
+        if isinstance(mailing, dict):
+            formatted = build_address_consum(mailing)
+            if formatted:
+                attributes["Adresă de corespondență"] = formatted
+
+        # ─────────────────────────────
+        # Subcontracte din list-with-subcontracts
+        # (acum e o listă plată de sub-contracte, extrasă din subContracts[])
+        # ─────────────────────────────
+        subcontracts = self.coordinator.data.get("subcontracts")
+        subcontracts_details = self.coordinator.data.get("subcontracts_details")
+
+        if subcontracts and isinstance(subcontracts, list):
+            attributes["────"] = ""
+            attributes["Număr subcontracte"] = len(subcontracts)
+
+            for idx, sub in enumerate(subcontracts, start=1):
+                if not isinstance(sub, dict):
+                    continue
+
+                sub_ac = sub.get("accountContract", "N/A")
+                utility = sub.get("utilityType", "")
+                utility_label = UTILITY_TYPE_LABEL.get(utility, utility or "Necunoscut")
+
+                prefix = utility_label
+                attributes[f"{prefix} — Cod încasare"] = sub_ac
+
+                if sub.get("consumptionPointCode"):
+                    attributes[f"{prefix} — Cod loc consum (NLC)"] = sub["consumptionPointCode"]
+
+                if sub.get("pod"):
+                    attributes[f"{prefix} — Cod punct măsură (POD)"] = sub["pod"]
+
+                sub_addr = sub.get("consumptionPointAddress")
+                if isinstance(sub_addr, dict):
+                    formatted_sub = build_address_consum(sub_addr)
+                    if formatted_sub:
+                        attributes[f"{prefix} — Adresă consum"] = formatted_sub
+
+        # ─────────────────────────────
+        # Detalii subcontracte din contracts-details-list
+        # (structură plată: fiecare element are prețuri, citiri contor, date revizie etc.)
+        # ─────────────────────────────
+        if subcontracts_details and isinstance(subcontracts_details, list):
+            for detail in subcontracts_details:
+                if not isinstance(detail, dict):
+                    continue
+
+                detail_ac = detail.get("accountContract", "N/A")
+                # Preferăm portfolioName (GN/EE) dacă e prezent, altfel utilityType
+                portfolio = detail.get("portfolioName", "")
+                utility = detail.get("utilityType", "")
+                if portfolio and portfolio in PORTFOLIO_LABEL:
+                    utility_label = PORTFOLIO_LABEL[portfolio]
+                elif utility in UTILITY_TYPE_LABEL:
+                    utility_label = UTILITY_TYPE_LABEL[utility]
+                else:
+                    utility_label = portfolio or utility or "Necunoscut"
+
+                prefix = utility_label
+
+                attributes[f"──── {utility_label} ────"] = ""
+
+                attributes[f"{prefix} — Cod încasare"] = detail_ac
+
+                if detail.get("distributorName"):
+                    attributes[f"{prefix} — Operator Distribuție (OD)"] = detail["distributorName"]
+
+                if detail.get("contractName"):
+                    attributes[f"{prefix} — Nume contract"] = detail["contractName"]
+
+                if detail.get("productName"):
+                    attributes[f"{prefix} — Produs"] = detail["productName"]
+
+                if detail.get("consumptionPointCode"):
+                    attributes[f"{prefix} — Cod loc consum (NLC)"] = detail["consumptionPointCode"]
+
+                if detail.get("pod"):
+                    attributes[f"{prefix} — Cod punct măsură (POD)"] = detail["pod"]
+
+                # Prețuri subcontract
+                price_data = detail.get("supplierAndDistributionPrice")
+                if isinstance(price_data, dict):
+                    if price_data.get("contractualPrice") is not None:
+                        attributes[f"{prefix} — Preț final (fără TVA)"] = f"{price_data['contractualPrice']} lei"
+
+                    if price_data.get("contractualPriceWithVat") is not None:
+                        attributes[f"{prefix} — Preț final (cu TVA)"] = f"{price_data['contractualPriceWithVat']} lei"
+
+                    components = price_data.get("priceComponents")
+                    if isinstance(components, dict):
+                        if components.get("supplierPrice") is not None:
+                            attributes[f"{prefix} — Preț furnizare"] = f"{components['supplierPrice']} lei"
+                        if components.get("distributionPrice") is not None:
+                            attributes[f"{prefix} — Tarif distribuție"] = f"{components['distributionPrice']} lei"
+                        if components.get("transportPrice") is not None:
+                            attributes[f"{prefix} — Tarif transport"] = f"{components['transportPrice']} lei"
+
+                    if price_data.get("pcs") is not None:
+                        attributes[f"{prefix} — PCS"] = str(price_data["pcs"])
+
+                # Citiri contor (meterReadings)
+                meter_readings = detail.get("meterReadings")
+                if isinstance(meter_readings, list) and meter_readings:
+                    for mr in meter_readings:
+                        if not isinstance(mr, dict):
+                            continue
+                        meter_num = mr.get("meterNumber", "")
+                        if mr.get("currentIndex") is not None:
+                            attributes[f"{prefix} — Index actual ({meter_num})"] = format_number_ro(mr["currentIndex"])
+                        if mr.get("oldIndex") is not None:
+                            attributes[f"{prefix} — Index vechi ({meter_num})"] = format_number_ro(mr["oldIndex"])
+                        reading_type = mr.get("readingType", "")
+                        if reading_type:
+                            attributes[f"{prefix} — Tip citire ({meter_num})"] = READING_TYPE_MAP.get(reading_type, reading_type)
+
+                # Adresă consum subcontract
+                sub_addr = detail.get("consumptionPointAddress")
+                if isinstance(sub_addr, dict):
+                    formatted_sub = build_address_consum(sub_addr)
+                    if formatted_sub:
+                        attributes[f"{prefix} — Adresă consum"] = formatted_sub
+
+                # Verificare / revizie instalație
+                if detail.get("verificationExpirationDate"):
+                    attributes[f"{prefix} — Verificare instalație"] = detail["verificationExpirationDate"]
+
+                if detail.get("revisionExpirationDate"):
+                    attributes[f"{prefix} — Revizie tehnică"] = detail["revisionExpirationDate"]
+
+                if detail.get("revisionStartDate"):
+                    attributes[f"{prefix} — Dată inițiere revizie"] = detail["revisionStartDate"]
+
+        attributes["attribution"] = ATTRIBUTION
+
+        return attributes
+
 
 # ──────────────────────────────────────────────
 # InvoiceBalanceSensor
@@ -305,13 +531,12 @@ class InvoiceBalanceSensor(EonRomaniaEntity):
     @property
     def native_value(self):
         data = self.coordinator.data.get("invoice_balance") if self.coordinator.data else None
-        if not data:
-            return None
-        if isinstance(data, dict):
-            balance = data.get("balance", data.get("total", data.get("totalBalance")))
-            if balance is not None:
-                return round(float(balance), 2)
-        return None
+        if not data or not isinstance(data, dict):
+            return "Nu"
+        balance = data.get("balance", data.get("total", data.get("totalBalance")))
+        if balance is not None and float(balance) > 0:
+            return "Da"
+        return "Nu"
 
     @property
     def extra_state_attributes(self):
@@ -355,9 +580,11 @@ class InvoiceBalanceProsumSensor(EonRomaniaEntity):
     def native_value(self):
         data = self.coordinator.data.get("invoice_balance_prosum") if self.coordinator.data else None
         if not data or not isinstance(data, dict):
-            return None
-        balance = data.get("balance", 0)
-        return round(float(balance), 2) if balance else 0
+            return "Nu"
+        balance = float(data.get("balance", 0))
+        if balance > 0:
+            return "Da"
+        return "Nu"
 
     @property
     def extra_state_attributes(self):
@@ -416,37 +643,77 @@ class ReschedulingPlansSensor(EonRomaniaEntity):
         return attributes
 
 
+# ══════════════════════════════════════════════
+# SENZORI EXISTENȚI (ACTUALIZAȚI)
+# ══════════════════════════════════════════════
+
+
 # ──────────────────────────────────────────────
 # CitireIndexSensor
 # ──────────────────────────────────────────────
 class CitireIndexSensor(EonRomaniaEntity):
     """Senzor pentru afișarea datelor despre indexul curent."""
 
-    def __init__(self, coordinator, config_entry, device_number):
+    UTILITY_TYPE_LABEL = {
+        "01": ("Electricitate", "Index energie electrică", "mdi:lightning-bolt", "index_energie_electrica"),
+        "02": ("Gaz", "Index gaz", "mdi:gauge", "index_gaz"),
+    }
+
+    def __init__(self, coordinator, config_entry, device_number, subcontract_code=None, utility_type=None):
         super().__init__(coordinator, config_entry)
         self.device_number = device_number
+        self._subcontract_code = subcontract_code
 
-        um = coordinator.data.get("um", "m3") if coordinator.data else "m3"
-        is_gaz = um.lower().startswith("m")
+        if subcontract_code and utility_type:
+            # Mod DUO: tipul utilității vine din subcontract
+            label_info = self.UTILITY_TYPE_LABEL.get(utility_type)
+            if label_info:
+                _, name, icon, tkey = label_info
+            else:
+                name = "Index"
+                icon = "mdi:gauge"
+                tkey = "index_curent"
+            self._attr_name = name
+            self._attr_icon = icon
+            self._attr_translation_key = tkey
+            self._attr_unique_id = f"{DOMAIN}_index_curent_{subcontract_code}"
+            self._custom_entity_id = f"sensor.{DOMAIN}_{subcontract_code}_{tkey}"
+        else:
+            # Mod individual: determinat din unitatea de măsură
+            um = coordinator.data.get("um", "m3") if coordinator.data else "m3"
+            is_gaz = um.lower().startswith("m")
+            self._attr_name = "Index gaz" if is_gaz else "Index energie electrică"
+            self._attr_icon = "mdi:gauge" if is_gaz else "mdi:lightning-bolt"
+            self._attr_translation_key = "index_gaz" if is_gaz else "index_energie_electrica"
+            self._attr_unique_id = f"{DOMAIN}_index_curent_{self._cod_incasare}"
+            self._custom_entity_id = (
+                f"sensor.{DOMAIN}_{self._cod_incasare}_index_gaz"
+                if is_gaz
+                else f"sensor.{DOMAIN}_{self._cod_incasare}_index_energie_electrica"
+            )
 
-        self._attr_name = "Index gaz" if is_gaz else "Index energie electrică"
-        self._attr_icon = "mdi:gauge" if is_gaz else "mdi:lightning-bolt"
-        self._attr_translation_key = "index_gaz" if is_gaz else "index_energie_electrica"
-        self._attr_unique_id = f"{DOMAIN}_index_curent_{self._cod_incasare}"
-        self._custom_entity_id = (
-            f"sensor.{DOMAIN}_{self._cod_incasare}_index_gaz"
-            if is_gaz
-            else f"sensor.{DOMAIN}_{self._cod_incasare}_index_energie_electrica"
-        )
+    def _get_meter_index_data(self):
+        """Returnează datele meter_index corecte: din subcontracts_meter_index sau meter_index."""
+        if not self.coordinator.data:
+            return None
+        if self._subcontract_code:
+            smi = self.coordinator.data.get("subcontracts_meter_index")
+            if isinstance(smi, dict):
+                return smi.get(self._subcontract_code)
+            return None
+        return self.coordinator.data.get("meter_index")
 
     @property
     def native_unit_of_measurement(self) -> str:
+        if self._subcontract_code:
+            # DUO: determinăm din utility_type stocat la init
+            return UnitOfVolume.CUBIC_METERS if "gaz" in self._attr_name.lower() else UnitOfEnergy.KILO_WATT_HOUR
         um = self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
         return UnitOfVolume.CUBIC_METERS if um.lower().startswith("m") else UnitOfEnergy.KILO_WATT_HOUR
 
     @property
     def native_value(self):
-        citireindex_data = self.coordinator.data.get("meter_index") if self.coordinator.data else None
+        citireindex_data = self._get_meter_index_data()
         if not citireindex_data:
             return 0
         devices = citireindex_data.get("indexDetails", {}).get("devices", [])
@@ -466,7 +733,7 @@ class CitireIndexSensor(EonRomaniaEntity):
 
     @property
     def extra_state_attributes(self):
-        citireindex_data = self.coordinator.data.get("meter_index") if self.coordinator.data else None
+        citireindex_data = self._get_meter_index_data()
         if not citireindex_data:
             return {}
 
@@ -531,27 +798,60 @@ class CitirePermisaSensor(EonRomaniaEntity):
 
     _attr_translation_key = "citire_permisa"
 
-    def __init__(self, coordinator, config_entry, device_number):
+    def __init__(self, coordinator, config_entry, device_number, subcontract_code=None, utility_type=None):
         super().__init__(coordinator, config_entry)
         self.device_number = device_number
-        self._attr_name = "Citire permisă"
-        self._attr_unique_id = f"{DOMAIN}_citire_permisa_{self._cod_incasare}"
-        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_citire_permisa"
+        self._subcontract_code = subcontract_code
+
+        if subcontract_code and utility_type:
+            # Mod DUO
+            ut_labels = {"01": "electricitate", "02": "gaz"}
+            ut_label = ut_labels.get(utility_type, "")
+            suffix = f" {ut_label}" if ut_label else ""
+            self._attr_name = f"Citire permisă{suffix}"
+            self._attr_unique_id = f"{DOMAIN}_citire_permisa_{subcontract_code}"
+            self._custom_entity_id = f"sensor.{DOMAIN}_{subcontract_code}_citire_permisa"
+        else:
+            self._attr_name = "Citire permisă"
+            self._attr_unique_id = f"{DOMAIN}_citire_permisa_{self._cod_incasare}"
+            self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_citire_permisa"
+
+    def _get_meter_index_data(self):
+        """Returnează datele meter_index corecte: din subcontracts_meter_index sau meter_index."""
+        if not self.coordinator.data:
+            return None
+        if self._subcontract_code:
+            smi = self.coordinator.data.get("subcontracts_meter_index")
+            if isinstance(smi, dict):
+                return smi.get(self._subcontract_code)
+            return None
+        return self.coordinator.data.get("meter_index")
 
     @property
     def native_value(self):
-        citireindex_data = self.coordinator.data.get("meter_index") if self.coordinator.data else None
+        citireindex_data = self._get_meter_index_data()
         if not citireindex_data:
             return "Nu"
 
         reading_period = citireindex_data.get("readingPeriod", {})
+
+        # 1. Cel mai fiabil indicator: inPeriod (setat de API)
+        in_period = reading_period.get("inPeriod")
+        if in_period is not None:
+            return "Da" if in_period else "Nu"
+
+        # 2. Fallback: allowedReading
+        allowed = reading_period.get("allowedReading")
+        if allowed is not None:
+            return "Da" if allowed else "Nu"
+
+        # 3. Fallback final: verificare manuală pe date
+        start_date_str = reading_period.get("startDate")
+        end_date_str = reading_period.get("endDate")
+
+        # canBeChangedTill din index poate extinde fereastra
         index_details = citireindex_data.get("indexDetails", {})
         devices = index_details.get("devices", [])
-
-        if not devices:
-            return "Nu"
-
-        start_date_str = reading_period.get("startDate")
         can_be_changed_till_str = None
         if devices:
             indexes = devices[0].get("indexes", [])
@@ -561,43 +861,70 @@ class CitirePermisaSensor(EonRomaniaEntity):
         try:
             today = dt_util.now().replace(tzinfo=None)
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d") if start_date_str else None
-            can_be_changed_till = (
-                datetime.strptime(can_be_changed_till_str, "%Y-%m-%d %H:%M:%S")
-                if can_be_changed_till_str
-                else None
-            )
-            if start_date and can_be_changed_till:
-                if today < start_date:
-                    return "Nu"
-                if start_date <= today <= can_be_changed_till:
+            # Limita superioară: canBeChangedTill dacă există, altfel endDate
+            upper_str = can_be_changed_till_str or end_date_str
+            upper_date = None
+            if upper_str:
+                for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                    try:
+                        upper_date = datetime.strptime(upper_str, fmt)
+                        break
+                    except ValueError:
+                        continue
+
+            if start_date and upper_date:
+                if start_date <= today <= upper_date:
                     return "Da"
                 return "Nu"
+            if start_date and today >= start_date:
+                return "Da"
             return "Nu"
         except Exception as e:
             _LOGGER.exception(
                 "Eroare la determinarea stării CitirePermisa (contract=%s): %s",
-                self._cod_incasare, e,
+                self._subcontract_code or self._cod_incasare, e,
             )
             return "Eroare"
 
     @property
     def extra_state_attributes(self):
-        citireindex_data = self.coordinator.data.get("meter_index") if self.coordinator.data else None
+        citireindex_data = self._get_meter_index_data()
         if not citireindex_data:
             return {}
+
+        reading_period = citireindex_data.get("readingPeriod", {})
         index_details = citireindex_data.get("indexDetails", {})
         devices = index_details.get("devices", [])
+
         if not devices:
             return {"În curs de actualizare": ""}
+
         for dev in devices:
             if dev.get("deviceNumber") == self.device_number:
                 indexes = dev.get("indexes", [{}])[0]
                 can_be_changed_till = indexes.get("canBeChangedTill")
-                return {
-                    "ID intern citire contor (SAP)": indexes.get("ablbelnr", "Necunoscut"),
-                    "Indexul poate fi trimis până la": can_be_changed_till or "Perioada nu a fost stabilită",
-                    "Cod încasare": self._cod_incasare,
-                }
+                # Dacă canBeChangedTill e null, folosim endDate din readingPeriod
+                deadline = can_be_changed_till or reading_period.get("endDate")
+
+                attributes = {}
+                attributes["ID intern citire contor (SAP)"] = indexes.get("ablbelnr", "Necunoscut")
+                attributes["Indexul poate fi trimis până la"] = deadline or "Perioada nu a fost stabilită"
+
+                start_date = reading_period.get("startDate")
+                end_date = reading_period.get("endDate")
+                if start_date and end_date:
+                    attributes["Perioadă transmitere index"] = f"{start_date} — {end_date}"
+
+                in_period = reading_period.get("inPeriod")
+                if in_period is not None:
+                    attributes["În perioadă de citire"] = "Da" if in_period else "Nu"
+
+                allowed = reading_period.get("allowedReading")
+                if allowed is not None:
+                    attributes["Citire autorizată"] = "Da" if allowed else "Nu"
+
+                attributes["Cod încasare"] = self._subcontract_code or self._cod_incasare
+                return attributes
         return {}
 
     @property
@@ -770,6 +1097,27 @@ class ConventieConsumSensor(EonRomaniaEntity):
     _attr_icon = "mdi:chart-bar"
     _attr_translation_key = "conventie_consum"
 
+    MONTH_MAPPING = {
+        "valueMonth1": "ianuarie", "valueMonth2": "februarie", "valueMonth3": "martie",
+        "valueMonth4": "aprilie", "valueMonth5": "mai", "valueMonth6": "iunie",
+        "valueMonth7": "iulie", "valueMonth8": "august", "valueMonth9": "septembrie",
+        "valueMonth10": "octombrie", "valueMonth11": "noiembrie", "valueMonth12": "decembrie",
+    }
+
+    UTILITY_TYPE_LABEL = {
+        "01": "Electricitate",
+        "02": "Gaz",
+    }
+
+    UNIT_NORMALIZE = {
+        "M3": "m³",
+        "m3": "m³",
+        "KWH": "kWh",
+        "kwh": "kWh",
+        "MWH": "MWh",
+        "mwh": "MWh",
+    }
+
     def __init__(self, coordinator, config_entry):
         super().__init__(coordinator, config_entry)
         self._attr_name = "Convenție consum"
@@ -778,6 +1126,13 @@ class ConventieConsumSensor(EonRomaniaEntity):
 
     @property
     def native_value(self):
+        is_collective = self.coordinator.data.get("is_collective", False) if self.coordinator.data else False
+
+        if is_collective:
+            return self._native_value_collective()
+        return self._native_value_individual()
+
+    def _native_value_individual(self):
         data = self.coordinator.data.get("consumption_convention") if self.coordinator.data else None
         if not data or not isinstance(data, list) or len(data) == 0:
             return "Nu"
@@ -788,25 +1143,98 @@ class ConventieConsumSensor(EonRomaniaEntity):
         )
         return "Da" if months_with_values > 0 else "Nu"
 
+    def _native_value_collective(self):
+        conventions = self.coordinator.data.get("subcontracts_conventions") if self.coordinator.data else None
+        if not conventions or not isinstance(conventions, dict):
+            return "Nu"
+        # "Da" dacă cel puțin un subcontract are convenție cu valori > 0
+        for conv_data in conventions.values():
+            if not isinstance(conv_data, list) or not conv_data:
+                continue
+            convention_line = conv_data[0].get("conventionLine", {})
+            if any(
+                convention_line.get(key, 0) > 0
+                for key in convention_line
+                if key.startswith("valueMonth")
+            ):
+                return "Da"
+        return "Nu"
+
     @property
     def extra_state_attributes(self):
+        if not self.coordinator.data:
+            return {}
+
+        is_collective = self.coordinator.data.get("is_collective", False)
+
+        if is_collective:
+            return self._attributes_collective()
+        return self._attributes_individual()
+
+    def _attributes_individual(self):
         data = self.coordinator.data.get("consumption_convention") if self.coordinator.data else None
         if not data or not isinstance(data, list) or len(data) == 0:
             return {}
         convention_line = data[0].get("conventionLine", {})
         um = self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
         is_gaz = um.lower().startswith("m")
-        unit = "m3" if is_gaz else "kWh"
-        month_mapping = {
-            "valueMonth1": "ianuarie", "valueMonth2": "februarie", "valueMonth3": "martie",
-            "valueMonth4": "aprilie", "valueMonth5": "mai", "valueMonth6": "iunie",
-            "valueMonth7": "iulie", "valueMonth8": "august", "valueMonth9": "septembrie",
-            "valueMonth10": "octombrie", "valueMonth11": "noiembrie", "valueMonth12": "decembrie",
-        }
+        unit = "m³" if is_gaz else "kWh"
         attributes = {
             f"Convenție din luna {month}": f"{convention_line.get(key, 0)} {unit}"
-            for key, month in month_mapping.items()
+            for key, month in self.MONTH_MAPPING.items()
         }
+        attributes["attribution"] = ATTRIBUTION
+        return attributes
+
+    def _attributes_collective(self):
+        """Construiește atributele pentru contracte colective/DUO — convenții per subcontract."""
+        conventions = self.coordinator.data.get("subcontracts_conventions")
+        subcontracts = self.coordinator.data.get("subcontracts")
+        if not conventions or not isinstance(conventions, dict):
+            return {}
+
+        attributes: dict[str, Any] = {}
+
+        for sc_code, conv_data in conventions.items():
+            if not isinstance(conv_data, list) or not conv_data:
+                continue
+
+            conv = conv_data[0]
+            convention_line = conv.get("conventionLine", {})
+
+            # Detectăm tipul utilității din subcontracte
+            utility_label = sc_code
+            if subcontracts and isinstance(subcontracts, list):
+                for s in subcontracts:
+                    if isinstance(s, dict) and s.get("accountContract") == sc_code:
+                        ut = s.get("utilityType", "")
+                        utility_label = self.UTILITY_TYPE_LABEL.get(ut, sc_code)
+                        break
+
+            # Detectăm unitatea de măsură din convenție (normalizată)
+            um_raw = conv.get("unitMeasure", "")
+            unit = self.UNIT_NORMALIZE.get(um_raw, um_raw) if um_raw else "m³"
+
+            attributes[f"──── {utility_label} ────"] = ""
+
+            for key, month in self.MONTH_MAPPING.items():
+                value = convention_line.get(key, 0)
+                attributes[f"{utility_label} — {month}"] = f"{value} {unit}"
+
+            # Date suplimentare convenție
+            if conv.get("fromDate"):
+                attributes[f"{utility_label} — Valabilă din"] = conv["fromDate"]
+
+            if conv.get("validUntil"):
+                attributes[f"{utility_label} — Valabilă până"] = conv["validUntil"]
+
+            price_data = conv.get("accountContractPrice")
+            if isinstance(price_data, dict):
+                if price_data.get("contractualPrice") is not None:
+                    attributes[f"{utility_label} — Preț contractual"] = f"{price_data['contractualPrice']} lei"
+                if price_data.get("pcs") is not None:
+                    attributes[f"{utility_label} — PCS"] = str(price_data["pcs"])
+
         attributes["attribution"] = ATTRIBUTION
         return attributes
 
@@ -922,6 +1350,7 @@ class ArhivaPlatiSensor(EonRomaniaEntity):
     def _payments_for_year(self) -> list:
         all_payments = self.coordinator.data.get("payments", []) if self.coordinator.data else []
         return [p for p in all_payments if p.get("paymentDate", "").startswith(str(self.year))]
+
 
 
 # ──────────────────────────────────────────────
