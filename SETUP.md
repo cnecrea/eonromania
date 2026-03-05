@@ -131,7 +131,7 @@ Ai două opțiuni:
 
 Click **Salvează**. Integrarea se instalează și creează:
 - 1 device per contract selectat
-- Senzori + 1 buton per device (numărul depinde de tipul contractului și datele disponibile)
+- Senzori + butoane de trimitere index per device (1 buton pentru contract individual, 2 butoane pentru DUO)
 
 Prima actualizare durează câteva secunde (interogare API pentru toate endpoint-urile per contract, în paralel).
 
@@ -168,7 +168,8 @@ Toate setările pot fi modificate din UI, fără a șterge și readăuga integra
 | Factură restantă | `sensor.eonromania_{cod}_factura_restanta` |
 | Factură prosumator | `sensor.eonromania_{cod}_factura_prosumator` |
 | Arhivă plăți (an) | `sensor.eonromania_{cod}_arhiva_plati_{an}` |
-| Trimite index | `button.eonromania_{cod}_trimite_index` |
+| Trimite index gaz | `button.eonromania_{cod}_trimite_index_gaz` |
+| Trimite index energie electrică | `button.eonromania_{cod}_trimite_index_energie_electrica` |
 
 ### Senzori specifici tipului de contract:
 
@@ -186,12 +187,16 @@ Toate setările pot fi modificate din UI, fără a șterge și readăuga integra
 | Index electricitate (subcontract) | `sensor.eonromania_{cod_subcontract}_index_energie_electrica` |
 | Citire permisă gaz | `sensor.eonromania_{cod_subcontract}_citire_permisa` |
 | Citire permisă electricitate | `sensor.eonromania_{cod_subcontract}_citire_permisa` |
+| Trimite index gaz (subcontract) | `button.eonromania_{cod_subcontract}_trimite_index_gaz` |
+| Trimite index electricitate (subcontract) | `button.eonromania_{cod_subcontract}_trimite_index_energie_electrica` |
 
 ---
 
-## Pregătire pentru butonul Trimite index
+## Pregătire pentru butoanele Trimite index
 
-Butonul de trimitere index necesită un `input_number` definit manual. Adaugă în `configuration.yaml`:
+Butoanele de trimitere index necesită câte un `input_number` definit manual, în funcție de tipul utilității. Adaugă în `configuration.yaml`:
+
+### Pentru gaz
 
 ```yaml
 input_number:
@@ -203,7 +208,21 @@ input_number:
     mode: box
 ```
 
-Restartează HA după adăugare. Butonul caută exact entitatea `input_number.gas_meter_reading`.
+### Pentru electricitate
+
+```yaml
+input_number:
+  energy_meter_reading:
+    name: Index contor energie electrică
+    min: 0
+    max: 999999
+    step: 1
+    mode: box
+```
+
+> **DUO:** Dacă ai contract DUO, definește **ambele** `input_number` (gaz + electricitate).
+
+Restartează HA după adăugare. Butoanele caută exact entitățile `input_number.gas_meter_reading` și `input_number.energy_meter_reading`.
 
 ---
 
@@ -229,8 +248,8 @@ entities:
     name: Factură restantă
   - entity: sensor.eonromania_004412345678_factura_prosumator
     name: Factură prosumator
-  - entity: button.eonromania_004412345678_trimite_index
-    name: Trimite index
+  - entity: button.eonromania_004412345678_trimite_index_gaz
+    name: Trimite index gaz
 ```
 
 ### Card — Sold factură
@@ -265,7 +284,7 @@ entities:
     name: Total neachitat
 ```
 
-### Card — Trimitere index cu input_number
+### Card — Trimitere index gaz cu input_number
 
 ```yaml
 type: vertical-stack
@@ -278,9 +297,29 @@ cards:
       - entity: sensor.eonromania_004412345678_citire_permisa
         name: Citire permisă
   - type: button
-    entity: button.eonromania_004412345678_trimite_index
-    name: Trimite indexul
-    icon: mdi:send
+    entity: button.eonromania_004412345678_trimite_index_gaz
+    name: Trimite indexul gaz
+    icon: mdi:fire
+    tap_action:
+      action: toggle
+```
+
+### Card — Trimitere index electricitate cu input_number
+
+```yaml
+type: vertical-stack
+title: Trimitere index energie electrică
+cards:
+  - type: entities
+    entities:
+      - entity: input_number.energy_meter_reading
+        name: Index de trimis
+      - entity: sensor.eonromania_002200345678_citire_permisa
+        name: Citire permisă electricitate
+  - type: button
+    entity: button.eonromania_002200345678_trimite_index_energie_electrica
+    name: Trimite indexul electricitate
+    icon: mdi:flash
     tap_action:
       action: toggle
 ```
