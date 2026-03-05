@@ -258,11 +258,17 @@ DUO list (collective) a returnat None sau structură invalidă (contract=0099001
 sau
 
 ```
-ERROR Nu există entitatea input_number.gas_meter_reading. Nu se poate trimite indexul (contract=004412345678).
+ERROR Nu există entitatea input_number.gas_meter_reading. Nu se poate trimite indexul (contract=004412345678, tip=Trimite index gaz).
+```
+
+sau (pentru electricitate):
+
+```
+ERROR Nu există entitatea input_number.energy_meter_reading. Nu se poate trimite indexul (contract=002200345678, tip=Trimite index energie electrică).
 ```
 
 **Cauze posibile**:
-1. `input_number.gas_meter_reading` nu există — trebuie creat manual (vezi [SETUP.md](SETUP.md))
+1. `input_number.gas_meter_reading` sau `input_number.energy_meter_reading` nu există — trebuie create manual (vezi [SETUP.md](SETUP.md))
 2. `input_number` are valoare invalidă
 3. Nu ești în perioada de citire (datele de contor lipsesc)
 4. Token-ul e invalid și re-autentificarea a eșuat
