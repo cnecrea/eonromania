@@ -115,8 +115,8 @@ Vei vedea un formular cu 3 câmpuri:
 După autentificare reușită, contractele sunt descoperite automat. Vei vedea lista tuturor contractelor asociate contului, cu adrese complete normalizate:
 
 ```
-Strada Exemplu 10, ap. 5, Cluj-Napoca, jud. Cluj ➜ 002103870166 (Gaz)
-Bulevardul Unirii 20, București ➜ 001234567890 (Electricitate)
+Strada Florilor 15, ap. 8, Cluj-Napoca, jud. Cluj ➜ 004412345678 (Gaz)
+Bulevardul Independenței 42, Brașov, jud. Brașov ➜ 009900123456 (Colectiv/DUO)
 ```
 
 Ai două opțiuni:
@@ -125,13 +125,15 @@ Ai două opțiuni:
 
 **Observație**: dacă nu selectezi niciun contract și nu bifezi „toate", vei primi eroare: „Selectați cel puțin un contract pentru a continua."
 
+**Contracte DUO**: contractele colective apar cu eticheta `(Colectiv/DUO)`. La selectare, integrarea descoperă automat subcontractele (gaz + electricitate) și creează senzori dedicați per subcontract.
+
 ### Pasul 4 — Confirmă
 
 Click **Salvează**. Integrarea se instalează și creează:
 - 1 device per contract selectat
-- 11+ senzori + 1 buton per device
+- Senzori + 1 buton per device (numărul depinde de tipul contractului și datele disponibile)
 
-Prima actualizare durează câteva secunde (interogare API pentru toate cele 11 endpoint-uri per contract, în paralel).
+Prima actualizare durează câteva secunde (interogare API pentru toate endpoint-urile per contract, în paralel).
 
 ---
 
@@ -176,6 +178,15 @@ Toate setările pot fi modificate din UI, fără a șterge și readăuga integra
 | Arhivă consum (an) | `…_{cod}_arhiva_consum_gaz_{an}` | `…_{cod}_arhiva_consum_energie_electrica_{an}` |
 | Arhivă index (an) | `…_{cod}_arhiva_index_gaz_{an}` | `…_{cod}_arhiva_index_energie_electrica_{an}` |
 
+### Senzori DUO (per subcontract):
+
+| Senzor | Entity ID |
+|---|---|
+| Index gaz (subcontract) | `sensor.eonromania_{cod_subcontract}_index_gaz` |
+| Index electricitate (subcontract) | `sensor.eonromania_{cod_subcontract}_index_energie_electrica` |
+| Citire permisă gaz | `sensor.eonromania_{cod_subcontract}_citire_permisa` |
+| Citire permisă electricitate | `sensor.eonromania_{cod_subcontract}_citire_permisa` |
+
 ---
 
 ## Pregătire pentru butonul Trimite index
@@ -204,50 +215,22 @@ Restartează HA după adăugare. Butonul caută exact entitatea `input_number.ga
 type: entities
 title: E·ON România
 entities:
-  - entity: sensor.eonromania_002103870166_date_contract
+  - entity: sensor.eonromania_004412345678_date_contract
     name: Date contract
-  - entity: sensor.eonromania_002103870166_sold_factura
+  - entity: sensor.eonromania_004412345678_sold_factura
     name: Sold factură
-  - entity: sensor.eonromania_002103870166_index_gaz
+  - entity: sensor.eonromania_004412345678_index_gaz
     name: Index gaz
-  - entity: sensor.eonromania_002103870166_citire_permisa
+  - entity: sensor.eonromania_004412345678_citire_permisa
     name: Citire permisă
-  - entity: sensor.eonromania_002103870166_conventie_consum
+  - entity: sensor.eonromania_004412345678_conventie_consum
     name: Convenție consum
-  - entity: sensor.eonromania_002103870166_factura_restanta
+  - entity: sensor.eonromania_004412345678_factura_restanta
     name: Factură restantă
-  - entity: sensor.eonromania_002103870166_factura_prosumator
+  - entity: sensor.eonromania_004412345678_factura_prosumator
     name: Factură prosumator
-  - entity: button.eonromania_002103870166_trimite_index
+  - entity: button.eonromania_004412345678_trimite_index
     name: Trimite index
-```
-
-### Card detaliat — Date contract
-
-```yaml
-type: entities
-title: Detalii contract E·ON
-entities:
-  - type: attribute
-    entity: sensor.eonromania_002103870166_date_contract
-    attribute: Cod încasare
-    name: Cod încasare
-  - type: attribute
-    entity: sensor.eonromania_002103870166_date_contract
-    attribute: Cod loc de consum (NLC)
-    name: Cod NLC
-  - type: attribute
-    entity: sensor.eonromania_002103870166_date_contract
-    attribute: Operator de Distribuție (OD)
-    name: Operator distribuție
-  - type: attribute
-    entity: sensor.eonromania_002103870166_date_contract
-    attribute: Preț final (cu TVA)
-    name: Preț final (cu TVA)
-  - type: attribute
-    entity: sensor.eonromania_002103870166_date_contract
-    attribute: Adresă consum
-    name: Adresa
 ```
 
 ### Card — Sold factură
@@ -256,14 +239,14 @@ entities:
 type: entities
 title: Sold factură
 entities:
-  - entity: sensor.eonromania_002103870166_sold_factura
+  - entity: sensor.eonromania_004412345678_sold_factura
     name: Sold
   - type: attribute
-    entity: sensor.eonromania_002103870166_sold_factura
+    entity: sensor.eonromania_004412345678_sold_factura
     attribute: Sold de plată
     name: De plată
   - type: attribute
-    entity: sensor.eonromania_002103870166_sold_factura
+    entity: sensor.eonromania_004412345678_sold_factura
     attribute: Rambursare disponibilă
     name: Rambursare
 ```
@@ -274,10 +257,10 @@ entities:
 type: entities
 title: Facturi restante
 entities:
-  - entity: sensor.eonromania_002103870166_factura_restanta
+  - entity: sensor.eonromania_004412345678_factura_restanta
     name: Factură restantă
   - type: attribute
-    entity: sensor.eonromania_002103870166_factura_restanta
+    entity: sensor.eonromania_004412345678_factura_restanta
     attribute: Total neachitat
     name: Total neachitat
 ```
@@ -292,10 +275,10 @@ cards:
     entities:
       - entity: input_number.gas_meter_reading
         name: Index de trimis
-      - entity: sensor.eonromania_002103870166_citire_permisa
+      - entity: sensor.eonromania_004412345678_citire_permisa
         name: Citire permisă
   - type: button
-    entity: button.eonromania_002103870166_trimite_index
+    entity: button.eonromania_004412345678_trimite_index
     name: Trimite indexul
     icon: mdi:send
     tap_action:
@@ -308,14 +291,14 @@ cards:
 type: conditional
 conditions:
   - condition: state
-    entity: sensor.eonromania_002103870166_factura_restanta
+    entity: sensor.eonromania_004412345678_factura_restanta
     state: "Da"
 card:
   type: markdown
   content: >-
     ## ⚠️ Ai factură restantă!
 
-    **Total neachitat:** {{ state_attr('sensor.eonromania_002103870166_factura_restanta', 'Total neachitat') }}
+    **Total neachitat:** {{ state_attr('sensor.eonromania_004412345678_factura_restanta', 'Total neachitat') }}
 
     Verifică detaliile în secțiunea Facturi din dashboard.
 ```
@@ -327,13 +310,13 @@ card:
 ### Verifică că device-urile există
 
 1. **Setări** → **Dispozitive și Servicii** → click pe **E·ON România**
-2. Ar trebui să vezi un device per contract selectat (ex: „E·ON România (002103870166)")
+2. Ar trebui să vezi un device per contract selectat (ex: „E·ON România (004412345678)")
 
 ### Verifică senzorii
 
 1. **Instrumente dezvoltator** → **Stări**
 2. Filtrează după `eonromania`
-3. Ar trebui să vezi entitățile cu valori (ex: `Da`, `Nu`, `934,07`, etc.)
+3. Ar trebui să vezi entitățile cu valori (ex: `Da`, `Nu`, `6030`, etc.)
 
 ### Verifică logurile (dacă ceva nu merge)
 
@@ -360,8 +343,9 @@ card:
 
 ## Observații generale
 
-- **Înlocuiește `002103870166`** cu codul tău real de încasare (12 cifre) în toate exemplele de mai sus.
+- **Înlocuiește `004412345678`** cu codul tău real de încasare (12 cifre) în toate exemplele de mai sus.
 - **Entity ID-urile sunt setate manual** de integrare pe baza codului de încasare și a tipului de contract. Consultă tabelul de referință de la începutul secțiunii de carduri.
 - **Atributele apar doar când E·ON furnizează datele.** Dacă un atribut nu e vizibil, înseamnă că API-ul nu a returnat acea informație — nu e o eroare.
 - **Senzorii de index și citire permisă** apar cu date doar în perioada de citire. În rest, afișează `0` sau `Nu`.
+- **Contractele DUO** generează senzori de index și citire permisă per subcontract, cu entity ID-uri bazate pe codul subcontractului, nu pe codul colectiv.
 - Dacă întâmpini probleme, consultă [DEBUG.md](DEBUG.md) pentru activarea logării detaliate.
