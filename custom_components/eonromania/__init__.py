@@ -64,15 +64,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Un singur client API partajat (un singur cont, un singur token)
     api_client = EonApiClient(session, username, password)
 
+    # Metadatele contractelor (tip utilitate, colectiv/nu)
+    contract_metadata = entry.data.get("contract_metadata", {})
+
     # Creăm câte un coordinator per contract selectat
     coordinators: dict[str, EonRomaniaCoordinator] = {}
 
     for cod in selected_contracts:
+        meta = contract_metadata.get(cod, {})
+        is_collective = meta.get("is_collective", False)
+
         coordinator = EonRomaniaCoordinator(
             hass,
             api_client=api_client,
             cod_incasare=cod,
             update_interval=update_interval,
+            is_collective=is_collective,
         )
 
         try:
