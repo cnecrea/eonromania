@@ -10,7 +10,7 @@
 
 Integrare custom pentru [Home Assistant](https://www.home-assistant.io/) care monitorizează datele contractuale, consumul și facturile prin API-ul [E·ON România](https://www.eon.ro/) (aplicația mobilă E·ON Myline).
 
-Oferă senzori dedicați per cod de încasare pentru contract, index curent, sold, facturi, plăți, istoric citiri, convenție consum, citire permisă, și un buton de trimitere index. Suportă complet contracte DUO (colective gaz + electricitate).
+Oferă senzori dedicați per cod de încasare pentru contract, index curent, sold, facturi, plăți, istoric citiri, convenție consum, citire permisă, și butoane de trimitere index per utilitate. Suportă complet contracte DUO (colective gaz + electricitate).
 
 ---
 
@@ -112,7 +112,7 @@ Detalii complete în [SETUP.md](SETUP.md).
 
 ## Entități create
 
-Integrarea creează un **device** per contract selectat. Sub fiecare device se creează senzori și un buton.
+Integrarea creează un **device** per contract selectat. Sub fiecare device se creează senzori și butoane de trimitere index (câte un buton per utilitate).
 
 ### Contract individual (gaz sau electricitate)
 
@@ -145,11 +145,14 @@ Pe lângă senzorii de bază (Date contract, Sold factură, Factură restantă, 
 
 Senzorul `Date contract` pentru DUO afișează în atribute: detalii contract colectiv, subcontracte cu coduri și adrese, plus detalii complete per subcontract (prețuri, contor, OD, NLC, POD).
 
-### Buton
+### Butoane
 
-| Entitate | Descriere |
-|----------|-----------|
-| `Trimite index` | Trimite indexul contorului către API-ul E·ON |
+| Entitate | Descriere | Când apare |
+|----------|-----------|------------|
+| `Trimite index gaz` | Trimite indexul contorului de gaz din `input_number.gas_meter_reading` | Contract gaz sau DUO (subcontract gaz) |
+| `Trimite index energie electrică` | Trimite indexul contorului de electricitate din `input_number.energy_meter_reading` | Contract electricitate sau DUO (subcontract electricitate) |
+
+La contractele individuale apare un singur buton (gaz SAU electricitate, detectat automat). La contractele DUO apar ambele butoane, fiecare trimițând indexul pentru subcontractul corespunzător.
 
 ---
 
@@ -301,12 +304,17 @@ Consum mediu zilnic în februarie: "3,048 m³"
 ...
 ```
 
-### Buton: Trimite index
+### Butoane: Trimite index gaz / Trimite index energie electrică
 
-Trimite indexul contorului către API-ul E·ON (endpoint meter-reading/index).
+Trimite indexul contorului către API-ul E·ON (endpoint meter-reading/index). Fiecare buton folosește propriul `input_number`:
+
+| Buton | input_number necesar | Entity ID (individual) | Entity ID (DUO subcontract) |
+|-------|---------------------|----------------------|----------------------------|
+| Trimite index gaz | `input_number.gas_meter_reading` | `button.eonromania_{cod}_trimite_index_gaz` | `button.eonromania_{cod_subcontract}_trimite_index_gaz` |
+| Trimite index energie electrică | `input_number.energy_meter_reading` | `button.eonromania_{cod}_trimite_index_energie_electrica` | `button.eonromania_{cod_subcontract}_trimite_index_energie_electrica` |
 
 **Cerințe**:
-- `input_number.gas_meter_reading` — definit de utilizator
+- `input_number.gas_meter_reading` și/sau `input_number.energy_meter_reading` — definite de utilizator în `configuration.yaml`
 - Perioada de citire activă (senzorul „Citire permisă" = Da)
 
 ---
@@ -357,7 +365,7 @@ entities:
 custom_components/eonromania/
 ├── __init__.py          # Setup/unload integrare (runtime_data pattern, multi-contract)
 ├── api.py               # Manager API — login HMAC-MD5, GET/POST cu retry pe 401
-├── button.py            # Buton trimitere index per contract
+├── button.py            # Butoane trimitere index per utilitate (gaz / electricitate / DUO)
 ├── config_flow.py       # ConfigFlow + OptionsFlow (autentificare, selecție contracte)
 ├── const.py             # Constante, URL-uri API
 ├── coordinator.py       # DataUpdateCoordinator — fetch paralel per contract (inclusiv DUO)
@@ -387,7 +395,7 @@ Nu necesită dependențe externe (nu instalează pachete pip/npm).
 
 2. **Senzorii de index și citire permisă** — apar cu date doar în perioada de citire. În rest, afișează `0` sau `Nu`.
 
-3. **Trimitere index** — butonul necesită `input_number.gas_meter_reading` definit manual de utilizator. Nu se creează automat.
+3. **Trimitere index** — butoanele necesită `input_number.gas_meter_reading` și/sau `input_number.energy_meter_reading` definite manual de utilizator în `configuration.yaml`. Nu se creează automat.
 
 4. **Planuri eșalonare** — senzorul apare doar dacă API-ul returnează date de eșalonare.
 
