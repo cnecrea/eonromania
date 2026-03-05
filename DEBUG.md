@@ -64,28 +64,43 @@ ha core logs | grep -i eonromania
 
 ---
 
-## 3. Cum citești logurile API (noutate v3.0.0)
+## 3. Cum citești logurile API
 
-Începând cu versiunea 3.0.0, fiecare cerere API este etichetată cu un **label descriptiv** care include numele endpoint-ului și codul de încasare. Formatul este:
+Fiecare cerere API este etichetată cu un **label descriptiv** care include numele endpoint-ului și codul de încasare. Formatul este:
 
 ```
 [label] METODA URL
 [label] Răspuns OK (200). Dimensiune: XXX caractere.
 ```
 
-### Exemplu de ciclu normal de actualizare
+### Exemplu de ciclu normal de actualizare (contract individual)
 
 ```
 [LOGIN] Token obținut cu succes (expires_in=3600).
-[contract_details (002103870166)] GET https://api2.eon.ro/partners/v2/account-contracts/002103870166?includeMeterReading=true
-[contract_details (002103870166)] Răspuns OK (200). Dimensiune: 1523 caractere.
-[invoice_balance (002103870166)] GET https://api2.eon.ro/invoices/v1/invoices/invoice-balance?accountContract=002103870166
-[invoice_balance (002103870166)] Răspuns OK (200). Dimensiune: 245 caractere.
-[meter_index (002103870166)] GET https://api2.eon.ro/meterreadings/v1/meter-reading/002103870166/index
-[meter_index (002103870166)] Răspuns OK (200). Dimensiune: 892 caractere.
-[payments (002103870166)] Pagină 1: 10 elemente, are_următoare=true.
-[payments (002103870166)] Pagină 2: 3 elemente, are_următoare=false.
-[payments (002103870166)] Total: 13 elemente din 2 pagini.
+[contract_details (004412345678)] GET https://api2.eon.ro/partners/v2/account-contracts/004412345678?includeMeterReading=true
+[contract_details (004412345678)] Răspuns OK (200). Dimensiune: 1523 caractere.
+[invoice_balance (004412345678)] GET https://api2.eon.ro/invoices/v1/invoices/invoice-balance?accountContract=004412345678
+[invoice_balance (004412345678)] Răspuns OK (200). Dimensiune: 245 caractere.
+[meter_index (004412345678)] GET https://api2.eon.ro/meterreadings/v1/meter-reading/004412345678/index
+[meter_index (004412345678)] Răspuns OK (200). Dimensiune: 892 caractere.
+[payments (004412345678)] Pagină 1: 10 elemente, are_următoare=true.
+[payments (004412345678)] Pagină 2: 3 elemente, are_următoare=false.
+[payments (004412345678)] Total: 13 elemente din 2 pagini.
+```
+
+### Exemplu de ciclu normal de actualizare (contract DUO)
+
+```
+Contract colectiv/DUO detectat (contract=009900123456). Se interoghează subcontractele via list?collectiveContract.
+[contracts_list] Date primite: type=list, len=2
+DUO sub_codes (contract=009900123456): 2 coduri → ['002100234567', '002200345678'].
+[contract_details (002100234567)] Răspuns OK (200). Dimensiune: 1823 caractere.
+[contract_details (002200345678)] Răspuns OK (200). Dimensiune: 1456 caractere.
+[consumption_convention (002100234567)] Răspuns OK (200). Dimensiune: 534 caractere.
+[consumption_convention (002200345678)] Răspuns OK (200). Dimensiune: 478 caractere.
+[meter_index (002100234567)] Răspuns OK (200). Dimensiune: 892 caractere.
+[meter_index (002200345678)] Răspuns OK (200). Dimensiune: 756 caractere.
+DUO contract_details individuale (contract=009900123456): 2/2 reușite. Convenții: 2/2 reușite. Meter index: 2/2 reușite.
 ```
 
 ### Etichete disponibile
@@ -94,7 +109,7 @@ ha core logs | grep -i eonromania
 |----------|----------|----------------|
 | `LOGIN` | mobile-login | — (autentificare) |
 | `REFRESH` | mobile-refresh-token | — (reîmprospătare token) |
-| `contracts_list` | account-contracts/list | — (config flow) |
+| `contracts_list` | account-contracts/list | — (config flow + DUO discovery) |
 | `contract_details` | account-contracts/{cod} | Date contract |
 | `invoices_unpaid` | invoices/list | Factură restantă |
 | `invoices_prosum` | invoices/list-prosum | Factură restantă prosumator |
@@ -108,23 +123,35 @@ ha core logs | grep -i eonromania
 | `payments` | payments/payment-list | Arhivă plăți |
 | `submit_meter` | meter-reading/index (POST) | Buton Trimite index |
 
+**Notă DUO**: Pentru contracte colective, `contract_details`, `consumption_convention` și `meter_index` sunt apelate per subcontract. În loguri vei vedea codul subcontractului (ex: `002100234567`), nu codul colectiv.
+
 ---
 
 ## 4. Mesajele de la pornire
 
 La prima pornire a integrării (sau după restart), ar trebui să vezi:
 
+### Contract individual:
 ```
 INFO  Se configurează integrarea eonromania (entry_id=01ABC...).
-DEBUG Contracte selectate: ['002103870166', '001234567890'], interval=3600s.
+DEBUG Contracte selectate: ['004412345678'], interval=3600s.
 DEBUG [LOGIN] Token obținut cu succes (expires_in=3600).
-DEBUG Începe actualizarea datelor E·ON (contract=002103870166).
-DEBUG Actualizare E·ON finalizată (contract=002103870166). Endpointuri fără date: 0/11.
-INFO  2 coordinatoare active din 2 contracte selectate (entry_id=01ABC...).
-INFO  Integrarea eonromania configurată (entry_id=01ABC..., contracte=['002103870166', '001234567890']).
+DEBUG Începe actualizarea datelor E·ON (contract=004412345678, colectiv=False).
+DEBUG Actualizare E·ON finalizată (contract=004412345678, colectiv=False). Endpointuri fără date: 0/11.
+INFO  1 coordinatoare active din 1 contracte selectate (entry_id=01ABC...).
 ```
 
-Numerele depind de câte contracte ai selectat.
+### Contract DUO:
+```
+INFO  Se configurează integrarea eonromania (entry_id=01ABC...).
+DEBUG Contracte selectate: ['009900123456'], interval=3600s.
+DEBUG [LOGIN] Token obținut cu succes (expires_in=3600).
+DEBUG Începe actualizarea datelor E·ON (contract=009900123456, colectiv=True).
+DEBUG Contract colectiv/DUO detectat (contract=009900123456). Se interoghează subcontractele via list?collectiveContract.
+DEBUG DUO sub_codes (contract=009900123456): 2 coduri → ['002100234567', '002200345678'].
+DEBUG DUO contract_details individuale (contract=009900123456): 2/2 reușite. Convenții: 2/2 reușite. Meter index: 2/2 reușite.
+DEBUG Actualizare E·ON finalizată (contract=009900123456, colectiv=True). Endpointuri fără date: 1/11.
+```
 
 ---
 
@@ -133,10 +160,10 @@ Numerele depind de câte contracte ai selectat.
 ### Token reînnoit automat
 
 ```
-[invoice_balance (002103870166)] Eroare: GET ... → Cod HTTP=401
-[invoice_balance (002103870166)] Cod HTTP=401 → se reîncearcă cu refresh token.
+[invoice_balance (004412345678)] Eroare: GET ... → Cod HTTP=401
+[invoice_balance (004412345678)] Cod HTTP=401 → se reîncearcă cu refresh token.
 [REFRESH] Token reîmprospătat cu succes (expires_in=3600).
-[invoice_balance (002103870166)] Răspuns OK (200). Dimensiune: 245 caractere.
+[invoice_balance (004412345678)] Răspuns OK (200). Dimensiune: 245 caractere.
 ```
 
 **Cauza**: token-ul API a expirat. Integrarea re-autentifică automat și reîncearcă request-ul. Comportament normal.
@@ -152,6 +179,14 @@ Dacă nu ești prosumator, e normal ca `invoices_prosum` și `invoice_balance_pr
 ```
 
 **Cauza**: mai multe apeluri paralele au încercat să se autentifice simultan. Lock-ul intern a permis doar unul — restul au reutilizat token-ul obținut. Comportament normal.
+
+### DUO — endpoint-uri fără date pe subcontracte
+
+```
+DUO contract_details individuale (contract=009900123456): 2/2 reușite. Convenții: 1/2 reușite. Meter index: 1/2 reușite.
+```
+
+**Cauza**: un subcontract (de obicei electricitate) poate să nu aibă convenție de consum sau date de contor disponibile. Asta depinde de contractul real — nu e neapărat o eroare.
 
 ---
 
@@ -173,7 +208,7 @@ Dacă nu ești prosumator, e normal ca `invoices_prosum` și `invoice_balance_pr
 ### Eroare de rețea / timeout
 
 ```
-[contract_details (002103870166)] Depășire de timp: GET https://api2.eon.ro/...
+[contract_details (004412345678)] Depășire de timp: GET https://api2.eon.ro/...
 ```
 
 **Cauza**: API-ul E·ON nu răspunde sau conexiunea HA la internet e întreruptă.
@@ -186,7 +221,7 @@ Dacă nu ești prosumator, e normal ca `invoices_prosum` și `invoice_balance_pr
 ### Prima actualizare eșuată
 
 ```
-ERROR Prima actualizare eșuată (entry_id=..., contract=002103870166): Nu s-a putut autentifica la API-ul E·ON.
+ERROR Prima actualizare eșuată (entry_id=..., contract=004412345678): Nu s-a putut autentifica la API-ul E·ON.
 ```
 
 **Cauza**: credențiale greșite sau API indisponibil la momentul pornirii.
@@ -196,7 +231,7 @@ ERROR Prima actualizare eșuată (entry_id=..., contract=002103870166): Nu s-a p
 ### Endpointuri fără date
 
 ```
-DEBUG Actualizare E·ON finalizată (contract=002103870166). Endpointuri fără date: 3/11.
+DEBUG Actualizare E·ON finalizată (contract=004412345678, colectiv=False). Endpointuri fără date: 3/11.
 ```
 
 **Interpretare**:
@@ -204,16 +239,26 @@ DEBUG Actualizare E·ON finalizată (contract=002103870166). Endpointuri fără 
 - **1-2/11** — normal dacă nu ești prosumator sau nu ai planuri de eșalonare
 - **3+/11** — posibilă problemă cu API-ul E·ON sau cu credențialele; verifică erorile precedente
 
+### DUO — subcontracte nedescoperite
+
+```
+DUO list (collective) a returnat None sau structură invalidă (contract=009900123456): NoneType.
+```
+
+**Cauza**: endpoint-ul `account-contracts/list?collectiveContract=...` nu a returnat date.
+
+**Rezolvare**: verifică dacă codul colectiv este corect, dacă contul are efectiv subcontracte, sau dacă API-ul E·ON este disponibil.
+
 ### Eroare la trimitere index
 
 ```
-[submit_meter (002103870166)] Token invalid. Trimiterea nu poate fi efectuată.
+[submit_meter (004412345678)] Token invalid. Trimiterea nu poate fi efectuată.
 ```
 
 sau
 
 ```
-ERROR Nu există entitatea input_number.gas_meter_reading. Nu se poate trimite indexul (contract=002103870166).
+ERROR Nu există entitatea input_number.gas_meter_reading. Nu se poate trimite indexul (contract=004412345678).
 ```
 
 **Cauze posibile**:
@@ -229,7 +274,7 @@ ERROR Nu există entitatea input_number.gas_meter_reading. Nu se poate trimite i
 La nivel debug, integrarea loghează dimensiunea răspunsurilor (nu conținutul complet):
 
 ```
-[contract_details (002103870166)] Răspuns OK (200). Dimensiune: 1523 caractere.
+[contract_details (004412345678)] Răspuns OK (200). Dimensiune: 1523 caractere.
 ```
 
 Pentru login și refresh, răspunsul complet este logat (include token-ul):
@@ -251,6 +296,7 @@ Pentru login și refresh, răspunsul complet este logat (include token-ul):
    - **Logurile relevante** — filtrează după `eonromania` și include 20–50 linii relevante
    - **Versiunea HA** — din **Setări** → **Despre**
    - **Versiunea integrării** — din `manifest.json` sau HACS
+   - **Tipul contractului** — individual sau DUO/colectiv
 
 ### Cum postezi loguri pe GitHub
 
@@ -258,8 +304,8 @@ Folosește blocuri de cod delimitate de 3 backticks:
 
 ````
 ```
-2026-03-04 10:15:12 DEBUG custom_components.eonromania [contract_details (002103870166)] GET https://api2.eon.ro/...
-2026-03-04 10:15:13 DEBUG custom_components.eonromania [contract_details (002103870166)] Răspuns OK (200). Dimensiune: 1523 caractere.
+2026-03-04 10:15:12 DEBUG custom_components.eonromania [contract_details (004412345678)] GET https://api2.eon.ro/...
+2026-03-04 10:15:13 DEBUG custom_components.eonromania [contract_details (004412345678)] Răspuns OK (200). Dimensiune: 1523 caractere.
 2026-03-04 10:15:14 ERROR custom_components.eonromania [LOGIN] Eroare autentificare. Cod HTTP=401
 ```
 ````
