@@ -10,7 +10,7 @@
 
 Integrare custom pentru [Home Assistant](https://www.home-assistant.io/) care monitorizează datele contractuale, consumul și facturile prin API-ul [E·ON România](https://www.eon.ro/) (aplicația mobilă E·ON Myline).
 
-Oferă senzori dedicați per cod de încasare pentru contract, index curent, sold, facturi, plăți, istoric citiri, convenție consum, citire permisă, și un buton de trimitere index.
+Oferă senzori dedicați per cod de încasare pentru contract, index curent, sold, facturi, plăți, istoric citiri, convenție consum, citire permisă, și un buton de trimitere index. Suportă complet contracte DUO (colective gaz + electricitate).
 
 ---
 
@@ -18,9 +18,10 @@ Oferă senzori dedicați per cod de încasare pentru contract, index curent, sol
 
 - **Descoperire automată** a contractelor asociate contului E·ON Myline
 - **Selectare granulară** a contractelor pe care vrei să le monitorizezi (checkbox-uri cu adrese complete)
-- **11 senzori + 1 buton** per contract selectat — fiecare contract devine un device dedicat
 - **Multi-contract** — un singur cont E·ON poate monitoriza mai multe coduri de încasare simultan
-- **Sold și facturi** — sold curent, facturi restante, prosumator, cu sume în format românesc (1.234,56 lei)
+- **Suport complet DUO** — contractele colective (gaz + electricitate sub un singur cod) sunt detectate automat, cu senzori separați per subcontract (index, citire permisă, convenție consum)
+- **Senzori dedicați** per contract selectat — fiecare contract devine un device dedicat
+- **Sold și facturi** — existență sold (Da/Nu), facturi restante cu detalii în atribute, format românesc (1.234,56 lei)
 - **Istoric citiri** — indexuri lunare cu tip citire (autocitit / estimat / citit distribuitor)
 - **Arhivă plăți** — plățile efectuate pe an, cu total anual
 - **Arhivă consum** — consum lunar și mediu zilnic per an, cu separatorul zecimal românesc (virgulă)
@@ -37,6 +38,7 @@ Datele vin prin API-ul aplicației mobile E·ON Myline (`api2.eon.ro`), care exp
 | Endpoint | Descriere |
 |----------|-----------|
 | contract-details | Detalii contract (prețuri, adresă, PCS) |
+| account-contracts/list | Listă subcontracte (pentru contracte DUO) |
 | invoices/list | Facturi neachitate |
 | invoices/list-prosum | Facturi prosumator |
 | invoice-balance | Sold factură |
@@ -75,7 +77,7 @@ Autentificarea se face cu email + parolă + semnătură HMAC-MD5 (mobile-login).
 ### Pasul 1 — Adaugă integrarea
 
 1. **Setări** → **Dispozitive și Servicii** → **Adaugă Integrare**
-2. Caută „**E·ON România**"
+2. Caută „**E·ON românia**"
 3. Completează formularul:
 
 | Câmp | Descriere | Implicit |
@@ -89,8 +91,8 @@ Autentificarea se face cu email + parolă + semnătură HMAC-MD5 (mobile-login).
 După autentificare, contractele sunt descoperite automat. Fiecare contract apare cu adresa completă normalizată:
 
 ```
-Strada Exemplu 10, ap. 5, Cluj-Napoca, jud. Cluj ➜ 002103870166 (Gaz)
-Bulevardul Unirii 20, București ➜ 001234567890 (Electricitate)
+Strada Florilor 15, ap. 8, Cluj-Napoca, jud. Cluj ➜ 004412345678 (Gaz)
+Bulevardul Independenței 42, Brașov, jud. Brașov ➜ 009900123456 (Colectiv/DUO)
 ```
 
 Selectezi individual sau bifezi „Selectează toate contractele".
@@ -112,16 +114,14 @@ Detalii complete în [SETUP.md](SETUP.md).
 
 Integrarea creează un **device** per contract selectat. Sub fiecare device se creează senzori și un buton.
 
-Cu 2 contracte selectate = 2 device-uri × (11+ senzori + 1 buton) = **24+ entități** total.
-
-### Senzori
+### Contract individual (gaz sau electricitate)
 
 | Entitate | Descriere | Valoare principală |
 |----------|-----------|-------------------|
 | `Date contract` | Detalii contract (prețuri, adresă, PCS) | Cod încasare |
-| `Sold factură` | Sold curent (tradus în română) | Suma în lei |
-| `Sold prosumator` | Sold prosumator | Suma în lei |
-| `Index gaz` / `Index energie electrică` | Index contor (doar în perioada de citire) | Valoare index |
+| `Sold factură` | Există sold de plată? | Da / Nu |
+| `Sold prosumator` | Există sold prosumator? | Da / Nu |
+| `Index gaz` / `Index energie electrică` | Index contor curent | Valoare index |
 | `Citire permisă` | Autocitire activă? | Da / Nu |
 | `Factură restantă` | Facturi neachitate cu calcul zile scadență | Da / Nu |
 | `Factură restantă prosumator` | Facturi prosumator (datorii + credite) | Da / Nu |
@@ -130,6 +130,20 @@ Cu 2 contracte selectate = 2 device-uri × (11+ senzori + 1 buton) = **24+ entit
 | `{an} → Arhivă index gaz` / `energie electrică` | Indexuri lunare per an | Număr citiri |
 | `{an} → Arhivă plăți` | Plăți lunare per an | Număr plăți |
 | `{an} → Arhivă consum gaz` / `energie electrică` | Consum lunar + mediu zilnic per an | Total consum |
+
+### Contract colectiv / DUO (gaz + electricitate)
+
+Pe lângă senzorii de bază (Date contract, Sold factură, Factură restantă, etc.), contractele DUO generează senzori suplimentari per subcontract:
+
+| Entitate | Descriere | Valoare principală |
+|----------|-----------|-------------------|
+| `Index gaz` | Index contor gaz (subcontract) | Valoare index |
+| `Index energie electrică` | Index contor electricitate (subcontract) | Valoare index |
+| `Citire permisă gaz` | Autocitire activă pe gaz? | Da / Nu |
+| `Citire permisă electricitate` | Autocitire activă pe electricitate? | Da / Nu |
+| `Convenție consum` | Convenție per utilitate (gaz + electricitate) | Da / Nu |
+
+Senzorul `Date contract` pentru DUO afișează în atribute: detalii contract colectiv, subcontracte cu coduri și adrese, plus detalii complete per subcontract (prețuri, contor, OD, NLC, POD).
 
 ### Buton
 
@@ -143,9 +157,9 @@ Cu 2 contracte selectate = 2 device-uri × (11+ senzori + 1 buton) = **24+ entit
 
 **Valoare principală**: codul de încasare
 
-**Atribute**:
+**Atribute (contract individual)**:
 ```yaml
-Cod încasare: "002103870166"
+Cod încasare: "004412345678"
 Cod loc de consum (NLC): "..."
 CLC - Cod punct de măsură: "..."
 Operator de Distribuție (OD): "..."
@@ -154,16 +168,37 @@ Preț final (cu TVA): "..."
 Preț furnizare: "..."
 Tarif reglementat distribuție: "..."
 Tarif reglementat transport: "..."
-PCS (Potențial caloric superior): "..."
-Adresă consum: "Strada Exemplu 10, ap. 5, Cluj-Napoca, jud. Cluj"
+PCS: "..."
+Adresă consum: "Strada Florilor 15, ap. 8, Cluj-Napoca, jud. Cluj"
 Următoarea verificare a instalației: "..."
 Data inițierii reviziei: "..."
 Următoarea revizie tehnică: "..."
 ```
 
+**Atribute (contract DUO)**:
+```yaml
+Cod încasare (DUO): "009900123456"
+Tip contract: "Colectiv / DUO (gaz + curent)"
+Adresă de corespondență: "..."
+────: ""
+Număr subcontracte: 2
+Gaz — Cod încasare: "002100234567"
+Gaz — Cod loc consum (NLC): "..."
+Electricitate — Cod încasare: "002200345678"
+Electricitate — Cod loc consum (NLC): "..."
+──── Gaz Natural ────: ""
+Gaz Natural — Cod încasare: "002100234567"
+Gaz Natural — Operator Distribuție (OD): "..."
+Gaz Natural — Preț final (cu TVA): "..."
+Gaz Natural — PCS: "10.657"
+──── Energie Electrică ────: ""
+Energie Electrică — Cod încasare: "002200345678"
+Energie Electrică — Operator Distribuție (OD): "..."
+```
+
 ### Senzor: Sold factură
 
-**Valoare principală**: suma soldului în lei
+**Valoare principală**: Da / Nu (există sold de plată?)
 
 **Atribute** (traduse automat din API în română):
 ```yaml
@@ -184,17 +219,35 @@ Asociație: "Nu"
 
 **Atribute**:
 ```yaml
-Numărul dispozitivului: "..."
+Numărul dispozitivului: "01234567/2020"
 Numărul ID intern citire contor: "..."
-Data de începere a următoarei citiri: "..."
-Data de final a citirii: "..."
-Autorizat să citească contorul: "Da / Nu"
-Permite modificarea citirii: "Da / Nu"
-Dispozitiv inteligent: "Da / Nu"
-Tipul citirii curente: "citit distribuitor / autocitit / estimat"
-Citire anterioară: "..."
-Ultima citire validată: "..."
-Index propus pentru facturare: "..."
+Data de începere a următoarei citiri: "2026-03-01"
+Data de final a citirii: "2026-03-07"
+Autorizat să citească contorul: "Da"
+Permite modificarea citirii: "Da"
+Dispozitiv inteligent: "Nu"
+Tipul citirii curente: "Autocitire"
+Citire anterioară: "6.030"
+Ultima citire validată: "6.030"
+```
+
+### Senzor: Citire permisă
+
+**Valoare principală**: Da / Nu
+
+Logica de determinare (în ordinea priorității):
+1. `readingPeriod.inPeriod` — indicator direct de la API
+2. `readingPeriod.allowedReading` — fallback
+3. Calcul manual pe `startDate` / `endDate` — fallback final
+
+**Atribute**:
+```yaml
+ID intern citire contor (SAP): "..."
+Indexul poate fi trimis până la: "2026-03-07"
+Perioadă transmitere index: "2026-03-01 — 2026-03-07"
+În perioadă de citire: "Da"
+Citire autorizată: "Da"
+Cod încasare: "002100234567"
 ```
 
 ### Senzor: Factură restantă
@@ -208,18 +261,43 @@ Factură 2: "98,20 lei — termen depășit cu 15 zile"
 Total neachitat: "223,70 lei"
 ```
 
+### Senzor: Convenție consum
+
+**Valoare principală**: Da / Nu
+
+**Atribute (contract individual)**:
+```yaml
+Convenție din luna ianuarie: "150 m³"
+Convenție din luna februarie: "150 m³"
+...
+```
+
+**Atribute (contract DUO)** — afișate per utilitate:
+```yaml
+──── Gaz ────: ""
+Gaz — ianuarie: "150 m³"
+Gaz — februarie: "150 m³"
+...
+Gaz — Valabilă din: "2025-06-06"
+Gaz — Preț contractual: "0.25637 lei"
+Gaz — PCS: "10.657"
+──── Electricitate ────: ""
+Electricitate — ianuarie: "85 kWh"
+...
+```
+
 ### Senzor: Arhivă consum gaz / energie electrică
 
 **Valoare principală**: consum total anual
 
 **Atribute** (cu separatorul zecimal românesc):
 ```yaml
-Consum lunar ianuarie: "124,91 m3"
-Consum lunar februarie: "91,45 m3"
+Consum lunar ianuarie: "124,91 m³"
+Consum lunar februarie: "91,45 m³"
 ...
 ────: ""
-Consum mediu zilnic în ianuarie: "4,029 m3"
-Consum mediu zilnic în februarie: "3,048 m3"
+Consum mediu zilnic în ianuarie: "4,029 m³"
+Consum mediu zilnic în februarie: "3,048 m³"
 ...
 ```
 
@@ -242,14 +320,14 @@ automation:
   - alias: "Notificare factură restantă E·ON"
     trigger:
       - platform: state
-        entity_id: sensor.eonromania_002103870166_factura_restanta
+        entity_id: sensor.eonromania_004412345678_factura_restanta
         to: "Da"
     action:
       - service: notify.mobile_app_telefonul_meu
         data:
           title: "Factură restantă E·ON"
           message: >
-            Ai {{ state_attr('sensor.eonromania_002103870166_factura_restanta', 'Total neachitat') }}
+            Ai {{ state_attr('sensor.eonromania_004412345678_factura_restanta', 'Total neachitat') }}
             de plătit.
 ```
 
@@ -259,15 +337,15 @@ automation:
 type: entities
 title: E·ON România
 entities:
-  - entity: sensor.eonromania_002103870166_date_contract
+  - entity: sensor.eonromania_004412345678_date_contract
     name: Contract
-  - entity: sensor.eonromania_002103870166_sold_factura
+  - entity: sensor.eonromania_004412345678_sold_factura
     name: Sold factură
-  - entity: sensor.eonromania_002103870166_citire_permisa
+  - entity: sensor.eonromania_004412345678_citire_permisa
     name: Citire permisă
-  - entity: sensor.eonromania_002103870166_factura_restanta
+  - entity: sensor.eonromania_004412345678_factura_restanta
     name: Factură restantă
-  - entity: sensor.eonromania_002103870166_conventie_consum
+  - entity: sensor.eonromania_004412345678_conventie_consum
     name: Convenție consum
 ```
 
@@ -282,10 +360,10 @@ custom_components/eonromania/
 ├── button.py            # Buton trimitere index per contract
 ├── config_flow.py       # ConfigFlow + OptionsFlow (autentificare, selecție contracte)
 ├── const.py             # Constante, URL-uri API
-├── coordinator.py       # DataUpdateCoordinator — fetch paralel (11 endpoint-uri per contract)
+├── coordinator.py       # DataUpdateCoordinator — fetch paralel per contract (inclusiv DUO)
 ├── helpers.py           # Funcții utilitare, mapping județe, formatare adrese, traduceri
 ├── manifest.json        # Metadata integrare
-├── sensor.py            # 11 clase senzor cu clasă de bază comună
+├── sensor.py            # Clase senzor cu suport individual + colectiv/DUO
 ├── strings.json         # Traduceri implicite (engleză)
 └── translations/
     └── ro.json          # Traduceri române
@@ -312,6 +390,8 @@ Nu necesită dependențe externe (nu instalează pachete pip/npm).
 3. **Trimitere index** — butonul necesită `input_number.gas_meter_reading` definit manual de utilizator. Nu se creează automat.
 
 4. **Planuri eșalonare** — senzorul apare doar dacă API-ul returnează date de eșalonare.
+
+5. **DUO — Arhivă consum și Arhivă index** — aceste senzori nu sunt disponibili pe contractul colectiv (endpoint-urile nu funcționează pe contractul părinte). Datele de index și convenție sunt disponibile per subcontract.
 
 ---
 
