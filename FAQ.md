@@ -191,7 +191,7 @@ De exemplu, pentru un contract de gaz cu codul `004412345678`:
 - `sensor.eonromania_004412345678_index_gaz`
 - `sensor.eonromania_004412345678_date_contract`
 - `sensor.eonromania_004412345678_sold_factura`
-- `button.eonromania_004412345678_trimite_index`
+- `button.eonromania_004412345678_trimite_index_gaz`
 
 Avantajul principal: dacă ai mai multe contracte monitorizate simultan, fiecare entitate are un ID unic, fără conflicte.
 
@@ -213,11 +213,16 @@ La pasul de configurare, selectezi contractele dorite (sau le selectezi pe toate
 
 Două lucruri:
 
-**1. Hardware pe contor** — Un senzor capabil să citească impulsurile contorului (contact reed / magnetic, de regulă). Trebuie să fie compatibil cu contorul tău și să nu necesite modificări permanente ale acestuia. Senzorul trimite impulsurile către Home Assistant, unde sunt convertite într-o valoare numerică stocată în `input_number.gas_meter_reading`.
+**1. Hardware pe contor** — Un senzor capabil să citească impulsurile contorului (contact reed / magnetic, de regulă). Trebuie să fie compatibil cu contorul tău și să nu necesite modificări permanente ale acestuia. Senzorul trimite impulsurile către Home Assistant, unde sunt convertite într-o valoare numerică stocată în `input_number`.
 
-**2. Integrarea configurată** — Butonul „Trimite index" (`button.eonromania_{cod}_trimite_index`) din integrare citește valoarea din `input_number.gas_meter_reading` și o trimite către API-ul E·ON. Poți apăsa butonul manual sau dintr-o automatizare.
+**2. Integrarea configurată** — Butoanele de trimitere index din integrare citesc valoarea din `input_number` corespunzător și o trimit către API-ul E·ON:
 
-> **Atenție:** Butonul caută exact entitatea `input_number.gas_meter_reading`. Dacă aceasta nu există sau are o valoare invalidă, trimiterea va eșua. Verifică în loguri dacă întâmpini probleme.
+- **Gaz**: butonul `Trimite index gaz` (`button.eonromania_{cod}_trimite_index_gaz`) citește din `input_number.gas_meter_reading`
+- **Electricitate**: butonul `Trimite index energie electrică` (`button.eonromania_{cod}_trimite_index_energie_electrica`) citește din `input_number.energy_meter_reading`
+
+La contractele DUO, ambele butoane sunt create automat (câte unul per subcontract). La contractele individuale, apare un singur buton corespunzător tipului de utilitate.
+
+> **Atenție:** Butoanele caută exact entitățile `input_number.gas_meter_reading` și/sau `input_number.energy_meter_reading`. Dacă acestea nu există sau au valori invalide, trimiterea va eșua. Verifică în loguri dacă întâmpini probleme.
 
 ---
 
@@ -260,7 +265,7 @@ actions:
         sequence:
           - action: button.press
             target:
-              entity_id: button.eonromania_004412345678_trimite_index
+              entity_id: button.eonromania_004412345678_trimite_index_gaz
 ```
 
 **Ce face:**
