@@ -1,18 +1,18 @@
 {
-  "generat_la": "2026-03-05T14:30:35.741Z",
+  "generat_la": "2026-03-06T03:09:47.608Z",
   "repository": "cnecrea/eonromania",
-  "total_descarcari": 285,
+  "total_descarcari": 287,
   "pe_release": [
     {
       "tag": "3.1.0",
       "nume": "3.1.0",
       "prerelease": false,
       "publicat_la": "2026-03-05T14:30:24Z",
-      "descarcari": 0,
+      "descarcari": 1,
       "assets": [
         {
           "nume": "eonromania.zip",
-          "descarcari": 0,
+          "descarcari": 1,
           "url": "https://github.com/cnecrea/eonromania/releases/download/3.1.0/eonromania.zip"
         }
       ]
@@ -22,11 +22,11 @@
       "nume": "3.0.0",
       "prerelease": false,
       "publicat_la": "2026-03-05T08:01:38Z",
-      "descarcari": 1,
+      "descarcari": 2,
       "assets": [
         {
           "nume": "eonromania.zip",
-          "descarcari": 1,
+          "descarcari": 2,
           "url": "https://github.com/cnecrea/eonromania/releases/download/3.0.0/eonromania.zip"
         }
       ]
@@ -204,13 +204,13 @@
     {
       "tag": "3.1.0",
       "nume": "eonromania.zip",
-      "descarcari": 0,
+      "descarcari": 1,
       "url": "https://github.com/cnecrea/eonromania/releases/download/3.1.0/eonromania.zip"
     },
     {
       "tag": "3.0.0",
       "nume": "eonromania.zip",
-      "descarcari": 1,
+      "descarcari": 2,
       "url": "https://github.com/cnecrea/eonromania/releases/download/3.0.0/eonromania.zip"
     },
     {
