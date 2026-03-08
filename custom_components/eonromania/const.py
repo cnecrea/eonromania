@@ -56,6 +56,13 @@ URL_LOGIN = f"{API_BASE}/users/{API_VERSION_USERS}/userauth/mobile-login"
 URL_REFRESH_TOKEN = f"{API_BASE}/users/{API_VERSION_USERS}/userauth/mobile-refresh-token"
 
 # ──────────────────────────────────────────────
+# URL-uri API — MFA (Two-Factor Authentication)
+# ──────────────────────────────────────────────
+URL_MFA_LOGIN = f"{API_BASE}/users/{API_VERSION_USERS}/second-factor-auth/mobile-login"
+URL_MFA_RESEND = f"{API_BASE}/users/{API_VERSION_USERS}/second-factor-auth/resend-code"
+MFA_REQUIRED_CODE = "6054"
+
+# ──────────────────────────────────────────────
 # URL-uri API — Parteneri & Contracte
 # ──────────────────────────────────────────────
 URL_CONTRACTS_LIST = f"{API_BASE}/partners/{API_VERSION_PARTNERS}/account-contracts/list"
