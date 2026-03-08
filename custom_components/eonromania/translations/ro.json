@@ -15,6 +15,14 @@
         }
       },
 
+      "mfa": {
+        "title": "Autentificare în doi pași",
+        "description": "Un cod de verificare a fost trimis prin {mfa_type} la {mfa_recipient}. Introduceți codul pentru a continua.",
+        "data": {
+          "code": "Cod de verificare"
+        }
+      },
+
       "select_contracts": {
         "title": "Selectare contracte",
         "description": "Am identificat contractele asociate contului. Selectați contractele pe care doriți să le monitorizați.",
@@ -28,7 +36,9 @@
     "error": {
       "auth_failed": "Autentificare eșuată. Verificați adresa de email și parola.",
       "no_data": "Autentificare reușită, dar nu au fost găsite contracte asociate acestui cont.",
-      "no_contract_selected": "Selectați cel puțin un contract pentru a continua."
+      "no_contract_selected": "Selectați cel puțin un contract pentru a continua.",
+      "mfa_failed": "Codul de verificare este incorect sau a expirat. Încercați din nou.",
+      "mfa_invalid_code": "Introduceți codul de verificare."
     },
 
     "abort": {
@@ -50,6 +60,14 @@
         }
       },
 
+      "mfa": {
+        "title": "Autentificare în doi pași",
+        "description": "Un cod de verificare a fost trimis prin {mfa_type} la {mfa_recipient}. Introduceți codul pentru a continua.",
+        "data": {
+          "code": "Cod de verificare"
+        }
+      },
+
       "select_contracts": {
         "title": "Modificare contracte monitorizate",
         "description": "Selectați contractele pe care doriți să le monitorizați și debifați-le pe cele pe care nu mai doriți să le urmăriți.",
@@ -63,7 +81,9 @@
     "error": {
       "auth_failed": "Autentificare eșuată cu credențialele introduse.",
       "no_data": "Nu au fost găsite contracte asociate acestui cont.",
-      "no_contract_selected": "Selectați cel puțin un contract."
+      "no_contract_selected": "Selectați cel puțin un contract.",
+      "mfa_failed": "Codul de verificare este incorect sau a expirat.",
+      "mfa_invalid_code": "Introduceți codul de verificare."
     }
   }
 }
