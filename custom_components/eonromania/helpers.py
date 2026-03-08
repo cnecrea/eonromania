@@ -173,6 +173,25 @@ def format_number_ro(value: float | int | str) -> str:
 # Funcții de autentificare
 # ══════════════════════════════════════════════
 
+def mask_email(email: str) -> str:
+    """Mascarea adresei de email: a*****b@gmail.com.
+
+    Păstrează primul și ultimul caracter din local part,
+    înlocuiește restul cu asteriscuri. Domeniul rămâne vizibil.
+    Dacă local part are 1-2 caractere, mascarea e minimală.
+    """
+    if not email or "@" not in email:
+        return email or "—"
+    local, domain = email.rsplit("@", 1)
+    if len(local) <= 1:
+        masked = local
+    elif len(local) == 2:
+        masked = f"{local[0]}*"
+    else:
+        masked = f"{local[0]}{'*' * (len(local) - 2)}{local[-1]}"
+    return f"{masked}@{domain}"
+
+
 def generate_verify_hmac(username: str, secret: str) -> str:
     """Generează semnătura HMAC-MD5 pentru câmpul verify din mobile-login."""
     return hmac.new(
