@@ -15,6 +15,14 @@
         }
       },
 
+      "mfa": {
+        "title": "Two-Factor Authentication",
+        "description": "A verification code has been sent via {mfa_type} to {mfa_recipient}. Enter the code to continue.",
+        "data": {
+          "code": "Verification code"
+        }
+      },
+
       "select_contracts": {
         "title": "Select contracts",
         "description": "We found contracts in your account. Select the contracts you want to monitor.",
@@ -28,7 +36,9 @@
     "error": {
       "auth_failed": "Authentication failed. Please check your email and password.",
       "no_data": "Authentication was successful, but no contracts were found for this account.",
-      "no_contract_selected": "Please select at least one contract to continue."
+      "no_contract_selected": "Please select at least one contract to continue.",
+      "mfa_failed": "The verification code is incorrect or has expired. Please try again.",
+      "mfa_invalid_code": "Please enter the verification code."
     },
 
     "abort": {
@@ -50,6 +60,14 @@
         }
       },
 
+      "mfa": {
+        "title": "Two-Factor Authentication",
+        "description": "A verification code has been sent via {mfa_type} to {mfa_recipient}. Enter the code to continue.",
+        "data": {
+          "code": "Verification code"
+        }
+      },
+
       "select_contracts": {
         "title": "Change monitored contracts",
         "description": "Select the contracts you want to monitor. Unselect those you no longer want to track.",
@@ -63,7 +81,9 @@
     "error": {
       "auth_failed": "Authentication failed with the provided credentials.",
       "no_data": "No contracts were found for this account.",
-      "no_contract_selected": "Please select at least one contract."
+      "no_contract_selected": "Please select at least one contract.",
+      "mfa_failed": "The verification code is incorrect or has expired.",
+      "mfa_invalid_code": "Please enter the verification code."
     }
   }
 }
