@@ -11,6 +11,7 @@ from .const import (
     API_TIMEOUT,
     AUTH_VERIFY_SECRET,
     HEADERS,
+    MFA_REQUIRED_CODE,
     TOKEN_MAX_AGE,
     TOKEN_REFRESH_THRESHOLD,
     URL_CONSUMPTION_CONVENTION,
@@ -27,6 +28,8 @@ from .const import (
     URL_METER_HISTORY,
     URL_METER_INDEX,
     URL_METER_SUBMIT,
+    URL_MFA_LOGIN,
+    URL_MFA_RESEND,
     URL_PAYMENT_LIST,
     URL_REFRESH_TOKEN,
     URL_RESCHEDULING_PLANS,
@@ -58,6 +61,9 @@ class EonApiClient:
         self._auth_lock = asyncio.Lock()
         self._token_generation: int = 0
 
+        # MFA state (setat de async_login când MFA e necesar)
+        self._mfa_data: dict | None = None
+
     # ──────────────────────────────────────────
     # Proprietăți publice
     # ──────────────────────────────────────────
@@ -71,6 +77,16 @@ class EonApiClient:
     def uuid(self) -> str | None:
         """Returnează UUID-ul utilizatorului autentificat."""
         return self._uuid
+
+    @property
+    def mfa_required(self) -> bool:
+        """Verifică dacă login-ul a returnat cerință MFA (2FA)."""
+        return self._mfa_data is not None
+
+    @property
+    def mfa_data(self) -> dict | None:
+        """Returnează datele MFA (uuid, type, recipient, etc.) sau None."""
+        return self._mfa_data
 
     def is_token_likely_valid(self) -> bool:
         """Verifică dacă tokenul există ȘI nu a depășit durata maximă estimată."""
@@ -86,7 +102,19 @@ class EonApiClient:
     # ──────────────────────────────────────────
 
     async def async_login(self) -> bool:
-        """Obține un token nou de autentificare prin mobile-login (fără lock — se apelează din _ensure_token_valid)."""
+        """Obține un token nou de autentificare prin mobile-login.
+
+        Returnează True dacă tokenul a fost obținut cu succes.
+        Returnează False dacă autentificarea a eșuat SAU dacă MFA e necesar.
+
+        Când MFA e necesar (HTTP 400, code 6054):
+        - Stochează datele MFA în self._mfa_data
+        - Returnează False (nu avem token încă)
+        - Config flow verifică self.mfa_required și afișează formularul MFA
+        - Coordinator (runtime) va ridica UpdateFailed — MFA nu poate fi gestionat automat
+        """
+        self._mfa_data = None  # Reset MFA state la fiecare încercare de login
+
         verify = generate_verify_hmac(self._username, AUTH_VERIFY_SECRET)
         payload = {
             "username": self._username,
@@ -105,16 +133,38 @@ class EonApiClient:
 
                 if resp.status == 200:
                     data = await resp.json()
-                    # Debug clar pentru datele primite la login
                     _LOGGER.debug(
                         "[LOGIN] Date primite: type=%s, keys=%s, sample=%s",
                         type(data).__name__,
                         list(data.keys()) if isinstance(data, dict) else "N/A",
-                        json.dumps(data, default=str)[:500]  # Limitat pentru a evita loguri uriașe
+                        json.dumps(data, default=str)[:500]
                     )
                     self._apply_token_data(data)
                     _LOGGER.debug("[LOGIN] Token obținut cu succes (expires_in=%s).", self._expires_in)
                     return True
+
+                # ── MFA necesar: HTTP 400 cu code "6054" ──
+                if resp.status == 400:
+                    try:
+                        data = json.loads(response_text)
+                    except (json.JSONDecodeError, ValueError):
+                        data = {}
+
+                    if str(data.get("code")) == MFA_REQUIRED_CODE:
+                        self._mfa_data = {
+                            "uuid": data.get("description"),  # UUID sesiune MFA
+                            "type": data.get("secondFactorType", "EMAIL"),
+                            "alternative_type": data.get("secondFactorAlternativeType", "SMS"),
+                            "recipient": data.get("secondFactorRecipient", ""),
+                            "validity": data.get("secondFactorValidity", 60),
+                        }
+                        _LOGGER.warning(
+                            "[LOGIN] MFA necesar (2FA activ). Tip=%s, Destinatar=%s, Valabilitate=%ss.",
+                            self._mfa_data["type"],
+                            self._mfa_data["recipient"],
+                            self._mfa_data["validity"],
+                        )
+                        return False  # Nu avem token, dar MFA e disponibil
 
                 _LOGGER.error(
                     "[LOGIN] Eroare autentificare. Cod HTTP=%s, Răspuns=%s",
@@ -131,6 +181,116 @@ class EonApiClient:
         except Exception as e:
             _LOGGER.error("[LOGIN] Eroare: %s", e)
             self._invalidate_tokens()
+            return False
+
+    async def async_mfa_complete(self, code: str) -> bool:
+        """Finalizează autentificarea MFA cu codul OTP primit.
+
+        Trimite codul la second-factor-auth/mobile-login.
+        Returnează True dacă tokenul a fost obținut.
+        """
+        if not self._mfa_data or not self._mfa_data.get("uuid"):
+            _LOGGER.error("[MFA] Nu există sesiune MFA activă (uuid lipsă).")
+            return False
+
+        payload = {
+            "uuid": self._mfa_data["uuid"],
+            "code": code,
+            "interval": None,
+            "type": None,
+        }
+
+        _LOGGER.debug("[MFA] Completare login 2FA: URL=%s", URL_MFA_LOGIN)
+
+        try:
+            async with self._session.post(
+                URL_MFA_LOGIN, json=payload, headers=HEADERS, timeout=self._timeout
+            ) as resp:
+                response_text = await resp.text()
+                _LOGGER.debug("[MFA] Răspuns: Status=%s, Body=%s", resp.status, response_text)
+
+                if resp.status == 200:
+                    data = await resp.json()
+                    access_token = data.get("access_token")
+                    if access_token:
+                        self._apply_token_data(data)
+                        self._mfa_data = None  # MFA completat cu succes
+                        _LOGGER.debug("[MFA] Login 2FA reușit (expires_in=%s).", self._expires_in)
+                        return True
+
+                _LOGGER.error(
+                    "[MFA] Autentificare 2FA eșuată. Cod HTTP=%s, Răspuns=%s",
+                    resp.status,
+                    response_text,
+                )
+                return False
+
+        except asyncio.TimeoutError:
+            _LOGGER.error("[MFA] Depășire de timp.")
+            return False
+        except Exception as e:
+            _LOGGER.error("[MFA] Eroare: %s", e)
+            return False
+
+    async def async_mfa_resend(self, mfa_type: str | None = None) -> bool:
+        """Retransmite codul MFA pe canalul specificat.
+
+        Args:
+            mfa_type: "SMS" sau "EMAIL". Dacă None, folosește tipul curent.
+
+        Returnează True dacă codul a fost retransmis cu succes.
+        Actualizează UUID-ul sesiunii MFA dacă serverul returnează unul nou.
+        """
+        if not self._mfa_data or not self._mfa_data.get("uuid"):
+            _LOGGER.error("[MFA-RESEND] Nu există sesiune MFA activă.")
+            return False
+
+        send_type = mfa_type or self._mfa_data.get("type", "EMAIL")
+
+        payload = {
+            "uuid": self._mfa_data["uuid"],
+            "secondFactorValidity": None,
+            "type": send_type,
+            "action": "AUTHORIZATION",
+            "recipient": None,
+        }
+
+        _LOGGER.debug("[MFA-RESEND] Retransmitere cod (%s): URL=%s", send_type, URL_MFA_RESEND)
+
+        try:
+            async with self._session.post(
+                URL_MFA_RESEND, json=payload, headers=HEADERS, timeout=self._timeout
+            ) as resp:
+                response_text = await resp.text()
+                _LOGGER.debug("[MFA-RESEND] Răspuns: Status=%s, Body=%s", resp.status, response_text)
+
+                if resp.status == 200:
+                    try:
+                        data = json.loads(response_text)
+                    except (json.JSONDecodeError, ValueError):
+                        data = {}
+                    # Actualizează UUID-ul dacă serverul trimite unul nou
+                    new_uuid = data.get("uuid")
+                    if new_uuid:
+                        self._mfa_data["uuid"] = new_uuid
+                    new_recipient = data.get("recipient")
+                    if new_recipient:
+                        self._mfa_data["recipient"] = new_recipient
+                    _LOGGER.debug("[MFA-RESEND] Cod retransmis cu succes (%s).", send_type)
+                    return True
+
+                _LOGGER.error(
+                    "[MFA-RESEND] Retransmitere eșuată. Cod HTTP=%s, Răspuns=%s",
+                    resp.status,
+                    response_text,
+                )
+                return False
+
+        except asyncio.TimeoutError:
+            _LOGGER.error("[MFA-RESEND] Depășire de timp.")
+            return False
+        except Exception as e:
+            _LOGGER.error("[MFA-RESEND] Eroare: %s", e)
             return False
 
     async def async_refresh_token(self) -> bool:
