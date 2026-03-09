@@ -23,7 +23,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL
+from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, DOMAIN_TOKEN_STORE
 from .api import EonApiClient
 from .helpers import (
     build_contract_metadata,
@@ -48,6 +48,23 @@ async def _fetch_contracts_after_login(api: EonApiClient) -> list[dict] | None:
     if contracts and isinstance(contracts, list) and len(contracts) > 0:
         return contracts
     return None
+
+
+def _store_token(hass, username: str, api: EonApiClient) -> None:
+    """Salvează token-ul API în hass.data pentru a fi preluat de __init__.py.
+
+    Token-ul este salvat per username (pot exista mai multe conturi).
+    """
+    token_data = api.export_token_data()
+    if token_data is None:
+        return
+    store = hass.data.setdefault(DOMAIN_TOKEN_STORE, {})
+    store[username.lower()] = token_data
+    _LOGGER.debug(
+        "Token salvat în hass.data pentru %s (access=%s...).",
+        username,
+        token_data["access_token"][:8] if token_data.get("access_token") else "None",
+    )
 
 
 # ------------------------------------------------------------------
@@ -89,7 +106,8 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._api = EonApiClient(session, self._username, self._password)
 
             if await self._api.async_login():
-                # Login reușit fără MFA — obține contractele
+                # Login reușit fără MFA — salvăm token-ul și obținem contractele
+                _store_token(self.hass, self._username, self._api)
                 contracts = await _fetch_contracts_after_login(self._api)
                 if contracts:
                     self._contracts_raw = contracts
@@ -143,7 +161,8 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not code:
                 errors["base"] = "mfa_invalid_code"
             elif self._api and await self._api.async_mfa_complete(code):
-                # MFA completat — obține contractele
+                # MFA completat — salvăm token-ul și obținem contractele
+                _store_token(self.hass, self._username, self._api)
                 contracts = await _fetch_contracts_after_login(self._api)
                 if contracts:
                     self._contracts_raw = contracts
@@ -265,6 +284,7 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
             self._api = EonApiClient(session, username, password)
 
             if await self._api.async_login():
+                _store_token(self.hass, username, self._api)
                 contracts = await _fetch_contracts_after_login(self._api)
                 if contracts:
                     self._contracts_raw = contracts
@@ -321,6 +341,7 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
             if not code:
                 errors["base"] = "mfa_invalid_code"
             elif self._api and await self._api.async_mfa_complete(code):
+                _store_token(self.hass, self._username, self._api)
                 contracts = await _fetch_contracts_after_login(self._api)
                 if contracts:
                     self._contracts_raw = contracts
