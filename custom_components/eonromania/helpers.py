@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from datetime import datetime
 from typing import Any
 
 from homeassistant.helpers.selector import SelectOptionDict
+from homeassistant.util import dt as dt_util
 
 
 # ══════════════════════════════════════════════
@@ -98,6 +100,42 @@ COUNTY_CODE_MAP: dict[str, str] = {
 }
 
 # ══════════════════════════════════════════════
+# Mapping-uri utilități și unități de măsură
+# ══════════════════════════════════════════════
+
+UTILITY_TYPE_LABEL: dict[str, str] = {
+    "01": "Electricitate",
+    "02": "Gaz",
+}
+
+UTILITY_TYPE_SENSOR_LABEL: dict[str, tuple[str, str, str, str]] = {
+    "01": ("Electricitate", "Index energie electrică", "mdi:lightning-bolt", "index_energie_electrica"),
+    "02": ("Gaz", "Index gaz", "mdi:gauge", "index_gaz"),
+}
+
+PORTFOLIO_LABEL: dict[str, str] = {
+    "GN": "Gaz Natural",
+    "EE": "Energie Electrică",
+}
+
+UNIT_NORMALIZE: dict[str, str] = {
+    "M3": "m³",
+    "m3": "m³",
+    "KWH": "kWh",
+    "kwh": "kWh",
+    "MWH": "MWh",
+    "mwh": "MWh",
+}
+
+CONVENTION_MONTH_MAPPING: dict[str, str] = {
+    "valueMonth1": "ianuarie", "valueMonth2": "februarie", "valueMonth3": "martie",
+    "valueMonth4": "aprilie", "valueMonth5": "mai", "valueMonth6": "iunie",
+    "valueMonth7": "iulie", "valueMonth8": "august", "valueMonth9": "septembrie",
+    "valueMonth10": "octombrie", "valueMonth11": "noiembrie", "valueMonth12": "decembrie",
+}
+
+
+# ══════════════════════════════════════════════
 # Mapping-uri traducere atribute API → română
 # ══════════════════════════════════════════════
 
@@ -167,6 +205,30 @@ def format_number_ro(value: float | int | str) -> str:
         return str(int(num))
     text = str(num)
     return text.replace(".", ",")
+
+
+def format_invoice_due_message(display_value: float, raw_date: str, date_format: str = "%d.%m.%Y") -> str:
+    """Formatează mesajul de scadență pentru o factură.
+
+    Returnează un mesaj de tip:
+    - „Restanță de X lei, termen depășit cu N zile"
+    - „De achitat astăzi: X lei"
+    - „Sumă de X lei scadentă pe luna LUNA (N zile)"
+
+    Ridică ValueError dacă data nu poate fi parsată.
+    """
+    parsed_date = datetime.strptime(raw_date, date_format)
+    month_name_en = parsed_date.strftime("%B")
+    month_name_ro = MONTHS_EN_RO.get(month_name_en, "necunoscut")
+    days_until_due = (parsed_date.date() - dt_util.now().date()).days
+
+    if days_until_due < 0:
+        day_unit = "zi" if abs(days_until_due) == 1 else "zile"
+        return f"Restanță de {format_ron(display_value)} lei, termen depășit cu {abs(days_until_due)} {day_unit}"
+    if days_until_due == 0:
+        return f"De achitat astăzi, {dt_util.now().strftime('%d.%m.%Y')}: {format_ron(display_value)} lei"
+    day_unit = "zi" if days_until_due == 1 else "zile"
+    return f"Sumă de {format_ron(display_value)} lei scadentă pe luna {month_name_ro} ({days_until_due} {day_unit})"
 
 
 # ══════════════════════════════════════════════
