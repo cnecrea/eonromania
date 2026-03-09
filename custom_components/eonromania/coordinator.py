@@ -1,9 +1,16 @@
-"""DataUpdateCoordinator pentru integrarea E·ON România."""
+"""DataUpdateCoordinator pentru integrarea E·ON România.
+
+Strategia de actualizare:
+- Prima actualizare (refresh #0): apelează TOATE endpoint-urile → detectează capabilități
+- Refresh-uri ușoare (light): doar endpoint-uri esențiale (5 calls)
+- Refresh-uri grele (heavy, la fiecare al 4-lea): + endpoint-uri istorice/opționale
+- Capabilitățile se recalibrează la fiecare al 4-lea refresh (~1×/zi la 6h interval)
+"""
 
 import asyncio
 import logging
 from datetime import timedelta
-import json  # Adăugat pentru dumping JSON în debug
+import json
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -11,6 +18,12 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import EonApiClient
 
 _LOGGER = logging.getLogger(__name__)
+
+# Fiecare al N-lea refresh este „greu" (include endpoint-uri istorice/paginate)
+HEAVY_REFRESH_EVERY = 4  # La 6h interval = heavy la fiecare 24h
+
+# Limită paginare pentru endpoint-urile paginate (payments, invoices_prosum)
+MAX_PAGINATED_PAGES = 3
 
 
 class EonRomaniaCoordinator(DataUpdateCoordinator):
@@ -35,13 +48,82 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         self.cod_incasare = cod_incasare
         self.is_collective = is_collective
 
+        # Capabilități detectate la prima actualizare
+        # None = nedeterminate (prima actualizare le va seta)
+        self._capabilities: dict[str, bool] | None = None
+        self._refresh_counter: int = 0
+
+    @property
+    def _is_heavy_refresh(self) -> bool:
+        """Determină dacă refresh-ul curent este „greu" (include endpoint-uri istorice)."""
+        return self._refresh_counter % HEAVY_REFRESH_EVERY == 0
+
+    def _update_capabilities(
+        self,
+        invoices_prosum,
+        invoice_balance_prosum,
+        rescheduling_plans,
+        payments,
+    ) -> None:
+        """Actualizează capabilitățile pe baza datelor primite."""
+        # Prosum: are date dacă invoices_prosum e non-empty SAU invoice_balance_prosum are sold
+        has_prosum = False
+        if invoices_prosum and isinstance(invoices_prosum, list) and len(invoices_prosum) > 0:
+            has_prosum = True
+        elif invoice_balance_prosum and isinstance(invoice_balance_prosum, dict):
+            # Verifică dacă balance_prosum are date reale (nu doar structura goală)
+            balance_val = invoice_balance_prosum.get("totalBalance") or invoice_balance_prosum.get("balance")
+            if balance_val is not None and balance_val != 0:
+                has_prosum = True
+
+        has_rescheduling = bool(
+            rescheduling_plans and isinstance(rescheduling_plans, list) and len(rescheduling_plans) > 0
+        )
+
+        has_payments = bool(
+            payments and isinstance(payments, list) and len(payments) > 0
+        )
+
+        self._capabilities = {
+            "has_prosum": has_prosum,
+            "has_rescheduling": has_rescheduling,
+            "has_payments": has_payments,
+        }
+
+        _LOGGER.info(
+            "[CAPABILITIES] Detectate (contract=%s): prosum=%s, eșalonare=%s, plăți=%s.",
+            self.cod_incasare,
+            has_prosum,
+            has_rescheduling,
+            has_payments,
+        )
+
+    @property
+    def capabilities(self) -> dict[str, bool] | None:
+        """Returnează capabilitățile detectate (None dacă nedeterminate încă)."""
+        return self._capabilities
+
+    def _cap(self, key: str) -> bool:
+        """Verifică o capabilitate. Returnează True dacă nedeterminată (prima dată)."""
+        if self._capabilities is None:
+            return True  # Prima actualizare: apelează tot
+        return self._capabilities.get(key, False)
+
     async def _async_update_data(self) -> dict:
-        """Obține date de la API — toate apelurile în paralel."""
+        """Obține date de la API cu strategie light/heavy.
+
+        Light refresh (frecvent): contract_details, invoice_balance, invoices_unpaid,
+            meter_index, consumption_convention
+        Heavy refresh (rar): + payments, invoices_prosum, invoice_balance_prosum,
+            rescheduling_plans, graphic_consumption, meter_history
+        """
         cod = self.cod_incasare
+        is_heavy = self._is_heavy_refresh
 
         _LOGGER.debug(
-            "Începe actualizarea datelor E·ON (contract=%s, colectiv=%s).",
-            cod, self.is_collective,
+            "Actualizare E·ON (contract=%s, colectiv=%s, refresh=#%s, tip=%s).",
+            cod, self.is_collective, self._refresh_counter,
+            "HEAVY" if is_heavy else "light",
         )
 
         try:
@@ -60,50 +142,93 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                     raise UpdateFailed("Nu s-a putut autentifica la API-ul E·ON.")
 
             # ──────────────────────────────────────
-            # Endpoint-uri comune (funcționează pe orice tip de contract)
+            # Endpoint-uri ESENȚIALE (la fiecare refresh)
             # ──────────────────────────────────────
-            common_tasks = [
+            essential_tasks = [
                 self.api_client.async_fetch_contract_details(cod),
-                self.api_client.async_fetch_invoices_unpaid(cod),
-                self.api_client.async_fetch_invoices_prosum(cod),
                 self.api_client.async_fetch_invoice_balance(cod),
-                self.api_client.async_fetch_invoice_balance_prosum(cod),
-                self.api_client.async_fetch_rescheduling_plans(cod),
-                self.api_client.async_fetch_payments(cod),
+                self.api_client.async_fetch_invoices_unpaid(cod),
             ]
 
             (
                 contract_details,
-                invoices_unpaid,
-                invoices_prosum,
                 invoice_balance,
-                invoice_balance_prosum,
-                rescheduling_plans,
-                payments,
-            ) = await asyncio.gather(*common_tasks)
+                invoices_unpaid,
+            ) = await asyncio.gather(*essential_tasks)
 
-            # Debug clar pentru datele comune primite
             _LOGGER.debug(
-                "Date comune primite (contract=%s): contract_details=%s, invoices_unpaid=%s (len=%s), "
-                "invoices_prosum=%s (len=%s), invoice_balance=%s, invoice_balance_prosum=%s, "
-                "rescheduling_plans=%s (len=%s), payments=%s (len=%s).",
+                "Date esențiale (contract=%s): contract_details=%s, invoice_balance=%s, "
+                "invoices_unpaid=%s (len=%s).",
                 cod,
                 type(contract_details).__name__ if contract_details else None,
+                type(invoice_balance).__name__ if invoice_balance else None,
                 type(invoices_unpaid).__name__ if invoices_unpaid else None,
                 len(invoices_unpaid) if isinstance(invoices_unpaid, list) else "N/A",
-                type(invoices_prosum).__name__ if invoices_prosum else None,
-                len(invoices_prosum) if isinstance(invoices_prosum, list) else "N/A",
-                type(invoice_balance).__name__ if invoice_balance else None,
-                type(invoice_balance_prosum).__name__ if invoice_balance_prosum else None,
-                type(rescheduling_plans).__name__ if rescheduling_plans else None,
-                len(rescheduling_plans) if isinstance(rescheduling_plans, list) else "N/A",
-                type(payments).__name__ if payments else None,
-                len(payments) if isinstance(payments, list) else "N/A",
             )
 
-            # Dump detaliat dacă este necesar (poate fi comentat pentru producție)
-            # _LOGGER.debug("contract_details JSON: %s", json.dumps(contract_details, default=str))
-            # Similar pentru celelalte, dar atenție la date sensibile
+            # ──────────────────────────────────────
+            # Endpoint-uri GRELE / OPȚIONALE (doar la heavy refresh)
+            # Se reutilizează datele anterioare la light refresh.
+            # ──────────────────────────────────────
+            prev = self.data or {}
+
+            if is_heavy:
+                heavy_tasks = []
+                heavy_labels = []
+
+                # Payments — doar dacă are capabilitate sau prima dată
+                if self._cap("has_payments"):
+                    heavy_tasks.append(
+                        self.api_client.async_fetch_payments(cod, max_pages=MAX_PAGINATED_PAGES)
+                    )
+                    heavy_labels.append("payments")
+
+                # Prosum — doar dacă are capabilitate sau prima dată
+                if self._cap("has_prosum"):
+                    heavy_tasks.append(
+                        self.api_client.async_fetch_invoices_prosum(cod, max_pages=MAX_PAGINATED_PAGES)
+                    )
+                    heavy_labels.append("invoices_prosum")
+                    heavy_tasks.append(
+                        self.api_client.async_fetch_invoice_balance_prosum(cod)
+                    )
+                    heavy_labels.append("invoice_balance_prosum")
+
+                # Rescheduling — doar dacă are capabilitate sau prima dată
+                if self._cap("has_rescheduling"):
+                    heavy_tasks.append(
+                        self.api_client.async_fetch_rescheduling_plans(cod)
+                    )
+                    heavy_labels.append("rescheduling_plans")
+
+                if heavy_tasks:
+                    heavy_results = await asyncio.gather(*heavy_tasks)
+                    heavy_map = dict(zip(heavy_labels, heavy_results))
+                else:
+                    heavy_map = {}
+
+                payments = heavy_map.get("payments")
+                invoices_prosum = heavy_map.get("invoices_prosum")
+                invoice_balance_prosum = heavy_map.get("invoice_balance_prosum")
+                rescheduling_plans = heavy_map.get("rescheduling_plans")
+
+                _LOGGER.debug(
+                    "Date grele (contract=%s): %s endpoint-uri apelate (%s).",
+                    cod, len(heavy_tasks), ", ".join(heavy_labels),
+                )
+
+                # Actualizează capabilitățile (la fiecare heavy refresh)
+                self._update_capabilities(
+                    invoices_prosum, invoice_balance_prosum,
+                    rescheduling_plans, payments,
+                )
+
+            else:
+                # Light refresh: reutilizăm datele grele din refresh-ul anterior
+                payments = prev.get("payments")
+                invoices_prosum = prev.get("invoices_prosum")
+                invoice_balance_prosum = prev.get("invoice_balance_prosum")
+                rescheduling_plans = prev.get("rescheduling_plans")
 
             # ──────────────────────────────────────
             # Endpoint-uri specifice tipului de contract
@@ -118,78 +243,60 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             subcontracts_meter_index = None
 
             if not self.is_collective:
-                # Contract individual: endpoint-uri contor + consum
-                meter_tasks = [
-                    self.api_client.async_fetch_graphic_consumption(cod),
+                # Contract individual: meter_index + consumption_convention la fiecare refresh
+                # graphic_consumption + meter_history doar la heavy
+                meter_essential_tasks = [
                     self.api_client.async_fetch_meter_index(cod),
                     self.api_client.async_fetch_consumption_convention(cod),
-                    self.api_client.async_fetch_meter_history(cod),
                 ]
 
                 (
-                    graphic_consumption,
                     meter_index,
                     consumption_convention,
-                    meter_history,
-                ) = await asyncio.gather(*meter_tasks)
+                ) = await asyncio.gather(*meter_essential_tasks)
 
-                # Debug clar pentru datele de contor primite
+                if is_heavy:
+                    meter_heavy_tasks = [
+                        self.api_client.async_fetch_graphic_consumption(cod),
+                        self.api_client.async_fetch_meter_history(cod),
+                    ]
+                    (
+                        graphic_consumption,
+                        meter_history,
+                    ) = await asyncio.gather(*meter_heavy_tasks)
+                else:
+                    graphic_consumption = prev.get("graphic_consumption")
+                    meter_history = prev.get("meter_history")
+
                 _LOGGER.debug(
-                    "Date contor primite (contract=%s): graphic_consumption=%s, meter_index=%s, "
-                    "consumption_convention=%s, meter_history=%s (len=%s).",
+                    "Date contor (contract=%s): meter_index=%s, consumption_convention=%s, "
+                    "graphic_consumption=%s, meter_history=%s.",
                     cod,
-                    type(graphic_consumption).__name__ if graphic_consumption else None,
                     type(meter_index).__name__ if meter_index else None,
                     type(consumption_convention).__name__ if consumption_convention else None,
-                    type(meter_history).__name__ if meter_history else None,
-                    len(meter_history) if isinstance(meter_history, list) else "N/A",
+                    "fresh" if is_heavy and graphic_consumption else ("cached" if graphic_consumption else None),
+                    "fresh" if is_heavy and meter_history else ("cached" if meter_history else None),
                 )
 
             else:
-                # Contract colectiv/DUO: obținem subcontractele prin endpoint-ul
-                # GET /account-contracts/list?collectiveContract={cod}
-                # (NU list-with-subcontracts care e un selector general)
+                # Contract colectiv/DUO: subcontracte
                 _LOGGER.debug(
-                    "Contract colectiv/DUO detectat (contract=%s). "
-                    "Se interoghează subcontractele via list?collectiveContract.",
+                    "Contract colectiv/DUO (contract=%s). Se interoghează subcontractele.",
                     cod,
                 )
                 raw_subs = await self.api_client.async_fetch_contracts_list(
                     collective_contract=cod
                 )
 
-                _LOGGER.debug(
-                    "DUO list (collective) primit (contract=%s): type=%s, len=%s, content=%s.",
-                    cod,
-                    type(raw_subs).__name__,
-                    len(raw_subs) if isinstance(raw_subs, list) else "N/A",
-                    json.dumps(raw_subs, default=str, ensure_ascii=False)[:1000]
-                    if raw_subs else "None",
-                )
-
-                # Răspunsul e o listă plată de contracte (subcontractele DUO)
-                # Fiecare element are: accountContract, utilityType, pod, etc.
                 if raw_subs and isinstance(raw_subs, list):
                     subcontracts = [
                         s for s in raw_subs
                         if isinstance(s, dict) and s.get("accountContract")
                     ]
-                    _LOGGER.debug(
-                        "DUO subcontracte extrase (contract=%s): %s, sample keys=%s.",
-                        cod, len(subcontracts),
-                        list(subcontracts[0].keys()) if subcontracts else "N/A",
-                    )
 
-                    # Obținem detaliile complete per subcontract
-                    # (GET individual /account-contracts/{ac}?includeMeterReading=true)
                     sub_codes = [s["accountContract"] for s in subcontracts]
-                    _LOGGER.debug(
-                        "DUO sub_codes (contract=%s): %s coduri → %s.",
-                        cod, len(sub_codes), sub_codes,
-                    )
                     if sub_codes:
-                        # Contract details + consumption convention + meter index
-                        # per subcontract, toate în paralel
+                        # Esențiale per subcontract: details + convention + meter_index
                         detail_tasks = [
                             self.api_client.async_fetch_contract_details(sc)
                             for sc in sub_codes
@@ -205,54 +312,41 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                         all_results = await asyncio.gather(
                             *detail_tasks, *convention_tasks, *meter_index_tasks
                         )
-                        # Primele N sunt details, următoarele N sunt conventions,
-                        # ultimele N sunt meter_index
+
                         n = len(sub_codes)
                         detail_results = all_results[:n]
                         convention_results = all_results[n:2 * n]
                         meter_index_results = all_results[2 * n:]
 
                         subcontracts_details = [
-                            d for d in detail_results
-                            if isinstance(d, dict)
-                        ]
-                        if not subcontracts_details:
-                            subcontracts_details = None
+                            d for d in detail_results if isinstance(d, dict)
+                        ] or None
 
-                        # Construim dict {accountContract: convention_data}
                         subcontracts_conventions = {}
                         for sc_code, conv_data in zip(sub_codes, convention_results):
                             if conv_data and isinstance(conv_data, list) and len(conv_data) > 0:
                                 subcontracts_conventions[sc_code] = conv_data
+                        subcontracts_conventions = subcontracts_conventions or None
 
-                        if not subcontracts_conventions:
-                            subcontracts_conventions = None
-
-                        # Construim dict {accountContract: meter_index_data}
                         subcontracts_meter_index = {}
                         for sc_code, mi_data in zip(sub_codes, meter_index_results):
                             if mi_data and isinstance(mi_data, dict):
                                 subcontracts_meter_index[sc_code] = mi_data
-
-                        if not subcontracts_meter_index:
-                            subcontracts_meter_index = None
+                        subcontracts_meter_index = subcontracts_meter_index or None
 
                         _LOGGER.debug(
-                            "DUO contract_details individuale (contract=%s): %s/%s reușite. "
-                            "Convenții: %s/%s reușite. Meter index: %s/%s reușite.",
-                            cod,
+                            "DUO (contract=%s): %s subcontracte, details=%s, conventions=%s, meter_index=%s.",
+                            cod, n,
                             len(subcontracts_details) if subcontracts_details else 0,
-                            n,
                             len(subcontracts_conventions) if subcontracts_conventions else 0,
-                            n,
                             len(subcontracts_meter_index) if subcontracts_meter_index else 0,
-                            n,
                         )
+
                     if not subcontracts:
                         subcontracts = None
                 else:
                     _LOGGER.warning(
-                        "DUO list (collective) a returnat None sau structură invalidă (contract=%s): %s.",
+                        "DUO list (collective) invalid (contract=%s): %s.",
                         cod, type(raw_subs).__name__,
                     )
 
@@ -268,14 +362,12 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.exception(
                 "Eroare neașteptată la actualizarea datelor E·ON (contract=%s): %s",
-                cod,
-                err,
+                cod, err,
             )
             raise UpdateFailed("Eroare neașteptată la actualizarea datelor E·ON.") from err
 
-        # Verificăm dacă datele esențiale sunt disponibile
+        # Verificăm datele esențiale
         if self.is_collective:
-            # Pentru contracte colective: e suficient contract_details
             if contract_details is None:
                 _LOGGER.error(
                     "Date esențiale indisponibile: contract_details este None (contract colectiv=%s).",
@@ -285,7 +377,6 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                     "Nu s-au putut obține datele esențiale de la E·ON (contract_details)."
                 )
         else:
-            # Pentru contracte individuale: trebuie cel puțin unul din cele două
             if contract_details is None and meter_index is None:
                 _LOGGER.error(
                     "Date esențiale indisponibile (contract_details + meter_index sunt None) (contract=%s).",
@@ -295,22 +386,16 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                     "Nu s-au putut obține datele esențiale de la E·ON (contract_details + meter_index)."
                 )
 
-        # Detectează unitatea de măsură din graficul de consum anual
+        # Detectează unitatea de măsură
         um = self._detect_unit(graphic_consumption)
 
-        # Debug: câte endpointuri au returnat None
-        all_results = [
-            contract_details, invoices_unpaid, invoices_prosum,
-            invoice_balance, invoice_balance_prosum,
-            rescheduling_plans, graphic_consumption,
-            meter_index, consumption_convention,
-            meter_history, payments,
-        ]
-        none_count = sum(x is None for x in all_results)
-        total = 7 if self.is_collective else 11
+        # Incrementăm contorul de refresh
+        self._refresh_counter += 1
+
+        # Sumar
         _LOGGER.debug(
-            "Actualizare E·ON finalizată (contract=%s, colectiv=%s). Endpointuri fără date: %s/%s.",
-            cod, self.is_collective, none_count, total,
+            "Actualizare E·ON finalizată (contract=%s, colectiv=%s, refresh=#%s).",
+            cod, self.is_collective, self._refresh_counter - 1,
         )
 
         return {
