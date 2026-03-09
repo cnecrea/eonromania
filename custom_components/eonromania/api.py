@@ -97,6 +97,43 @@ class EonApiClient:
         effective_max = self._expires_in - TOKEN_REFRESH_THRESHOLD if self._expires_in > TOKEN_REFRESH_THRESHOLD else TOKEN_MAX_AGE
         return age < effective_max
 
+    def export_token_data(self) -> dict | None:
+        """Exportă datele de token pentru a fi reinjectate în altă instanță.
+
+        Folosit de config_flow pentru a salva token-ul după autentificare MFA,
+        astfel încât __init__.py să-l poată injecta în API client-ul coordinatorului.
+        """
+        if self._access_token is None:
+            return None
+        return {
+            "access_token": self._access_token,
+            "token_type": self._token_type,
+            "expires_in": self._expires_in,
+            "refresh_token": self._refresh_token,
+            "id_token": self._id_token,
+            "uuid": self._uuid,
+        }
+
+    def inject_token(self, token_data: dict) -> None:
+        """Injectează un token existent (obținut anterior, ex. din config_flow).
+
+        Setează token_obtained_at la momentul curent (monotonic).
+        """
+        self._access_token = token_data.get("access_token")
+        self._token_type = token_data.get("token_type", "Bearer")
+        self._expires_in = token_data.get("expires_in", 3600)
+        self._refresh_token = token_data.get("refresh_token")
+        self._id_token = token_data.get("id_token")
+        self._uuid = token_data.get("uuid")
+        self._token_obtained_at = time.monotonic()
+        self._token_generation += 1
+        _LOGGER.debug(
+            "Token injectat (access=%s..., refresh=%s, gen=%s).",
+            self._access_token[:8] if self._access_token else "None",
+            "da" if self._refresh_token else "nu",
+            self._token_generation,
+        )
+
     # ──────────────────────────────────────────
     # Autentificare
     # ──────────────────────────────────────────
