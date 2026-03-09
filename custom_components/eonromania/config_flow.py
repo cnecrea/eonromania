@@ -123,7 +123,7 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required("password"): str,
                 vol.Optional(
                     "update_interval", default=DEFAULT_UPDATE_INTERVAL
-                ): int,
+                ): vol.All(int, vol.Range(min=21600)),
             }
         )
 
@@ -301,7 +301,7 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(
                     "update_interval",
                     default=current.get("update_interval", DEFAULT_UPDATE_INTERVAL),
-                ): int,
+                ): vol.All(int, vol.Range(min=21600)),
             }
         )
 
