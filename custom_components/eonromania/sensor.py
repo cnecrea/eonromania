@@ -16,14 +16,20 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN, ATTRIBUTION
 from .coordinator import EonRomaniaCoordinator
 from .helpers import (
-    MONTHS_EN_RO,
-    MONTHS_NUM_RO,
-    READING_TYPE_MAP,
+    CONVENTION_MONTH_MAPPING,
     INVOICE_BALANCE_KEY_MAP,
     INVOICE_BALANCE_MONEY_KEYS,
-    format_ron,
-    format_number_ro,
+    MONTHS_NUM_RO,
+    PORTFOLIO_LABEL,
+    READING_TYPE_MAP,
+    UNIT_NORMALIZE,
+    UTILITY_TYPE_LABEL,
+    UTILITY_TYPE_SENSOR_LABEL,
     build_address_consum,
+    format_invoice_due_message,
+    format_number_ro,
+    format_ron,
+    get_meter_data,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -359,16 +365,6 @@ class ContractDetailsSensor(EonRomaniaEntity):
         """Construiește atributele pentru un contract colectiv/DUO (gaz + curent)."""
         attributes: dict[str, Any] = {}
 
-        UTILITY_TYPE_LABEL = {
-            "01": "Electricitate",
-            "02": "Gaz",
-        }
-
-        PORTFOLIO_LABEL = {
-            "GN": "Gaz Natural",
-            "EE": "Energie Electrică",
-        }
-
         # ─────────────────────────────
         # Date contract colectiv (din contract_details)
         # ─────────────────────────────
@@ -661,11 +657,6 @@ class ReschedulingPlansSensor(EonRomaniaEntity):
 class CitireIndexSensor(EonRomaniaEntity):
     """Senzor pentru afișarea datelor despre indexul curent."""
 
-    UTILITY_TYPE_LABEL = {
-        "01": ("Electricitate", "Index energie electrică", "mdi:lightning-bolt", "index_energie_electrica"),
-        "02": ("Gaz", "Index gaz", "mdi:gauge", "index_gaz"),
-    }
-
     def __init__(self, coordinator, config_entry, device_number, subcontract_code=None, utility_type=None):
         super().__init__(coordinator, config_entry)
         self.device_number = device_number
@@ -673,7 +664,7 @@ class CitireIndexSensor(EonRomaniaEntity):
 
         if subcontract_code and utility_type:
             # Mod DUO: tipul utilității vine din subcontract
-            label_info = self.UTILITY_TYPE_LABEL.get(utility_type)
+            label_info = UTILITY_TYPE_SENSOR_LABEL.get(utility_type)
             if label_info:
                 _, name, icon, tkey = label_info
             else:
@@ -699,17 +690,6 @@ class CitireIndexSensor(EonRomaniaEntity):
                 else f"sensor.{DOMAIN}_{self._cod_incasare}_index_energie_electrica"
             )
 
-    def _get_meter_index_data(self):
-        """Returnează datele meter_index corecte: din subcontracts_meter_index sau meter_index."""
-        if not self.coordinator.data:
-            return None
-        if self._subcontract_code:
-            smi = self.coordinator.data.get("subcontracts_meter_index")
-            if isinstance(smi, dict):
-                return smi.get(self._subcontract_code)
-            return None
-        return self.coordinator.data.get("meter_index")
-
     @property
     def native_unit_of_measurement(self) -> str:
         if self._subcontract_code:
@@ -720,7 +700,10 @@ class CitireIndexSensor(EonRomaniaEntity):
 
     @property
     def native_value(self):
-        citireindex_data = self._get_meter_index_data()
+        citireindex_data = get_meter_data(
+            self.coordinator.data, self._subcontract_code or self._cod_incasare,
+            is_subcontract=bool(self._subcontract_code),
+        )
         if not citireindex_data:
             return 0
         devices = citireindex_data.get("indexDetails", {}).get("devices", [])
@@ -740,7 +723,10 @@ class CitireIndexSensor(EonRomaniaEntity):
 
     @property
     def extra_state_attributes(self):
-        citireindex_data = self._get_meter_index_data()
+        citireindex_data = get_meter_data(
+            self.coordinator.data, self._subcontract_code or self._cod_incasare,
+            is_subcontract=bool(self._subcontract_code),
+        )
         if not citireindex_data:
             return {}
 
@@ -823,20 +809,12 @@ class CitirePermisaSensor(EonRomaniaEntity):
             self._attr_unique_id = f"{DOMAIN}_citire_permisa_{self._cod_incasare}"
             self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_citire_permisa"
 
-    def _get_meter_index_data(self):
-        """Returnează datele meter_index corecte: din subcontracts_meter_index sau meter_index."""
-        if not self.coordinator.data:
-            return None
-        if self._subcontract_code:
-            smi = self.coordinator.data.get("subcontracts_meter_index")
-            if isinstance(smi, dict):
-                return smi.get(self._subcontract_code)
-            return None
-        return self.coordinator.data.get("meter_index")
-
     @property
     def native_value(self):
-        citireindex_data = self._get_meter_index_data()
+        citireindex_data = get_meter_data(
+            self.coordinator.data, self._subcontract_code or self._cod_incasare,
+            is_subcontract=bool(self._subcontract_code),
+        )
         if not citireindex_data:
             return "Nu"
 
@@ -895,7 +873,10 @@ class CitirePermisaSensor(EonRomaniaEntity):
 
     @property
     def extra_state_attributes(self):
-        citireindex_data = self._get_meter_index_data()
+        citireindex_data = get_meter_data(
+            self.coordinator.data, self._subcontract_code or self._cod_incasare,
+            is_subcontract=bool(self._subcontract_code),
+        )
         if not citireindex_data:
             return {}
 
@@ -988,18 +969,7 @@ class FacturaRestantaSensor(EonRomaniaEntity):
                 total_sold += display_value
                 raw_date = item.get("maturityDate", "Necunoscut")
                 try:
-                    parsed_date = datetime.strptime(raw_date, "%d.%m.%Y")
-                    month_name_en = parsed_date.strftime("%B")
-                    month_name_ro = MONTHS_EN_RO.get(month_name_en, "necunoscut")
-                    days_until_due = (parsed_date.date() - dt_util.now().date()).days
-                    if days_until_due < 0:
-                        day_unit = "zi" if abs(days_until_due) == 1 else "zile"
-                        msg = f"Restanță de {format_ron(display_value)} lei, termen depășit cu {abs(days_until_due)} {day_unit}"
-                    elif days_until_due == 0:
-                        msg = f"De achitat astăzi, {dt_util.now().strftime('%d.%m.%Y')}: {format_ron(display_value)} lei"
-                    else:
-                        day_unit = "zi" if days_until_due == 1 else "zile"
-                        msg = f"Următoarea sumă de {format_ron(display_value)} lei este scadentă pe luna {month_name_ro} ({days_until_due} {day_unit})"
+                    msg = format_invoice_due_message(display_value, raw_date)
                     attributes[f"Factură {idx}"] = msg
                 except ValueError:
                     attributes[f"Factură {idx}"] = "Data scadenței necunoscută"
@@ -1058,21 +1028,9 @@ class FacturaProsumSensor(EonRomaniaEntity):
             invoice_type = item.get("type", "Necunoscut")
 
             try:
-                parsed_date = datetime.strptime(raw_date, "%d.%m.%Y")
-                month_name_en = parsed_date.strftime("%B")
-                month_name_ro = MONTHS_EN_RO.get(month_name_en, "necunoscut")
-
                 if display_value > 0:
                     total_sold += display_value
-                    days_until_due = (parsed_date.date() - dt_util.now().date()).days
-                    if days_until_due < 0:
-                        day_unit = "zi" if abs(days_until_due) == 1 else "zile"
-                        msg = f"Restanță de {format_ron(display_value)} lei, termen depășit cu {abs(days_until_due)} {day_unit}"
-                    elif days_until_due == 0:
-                        msg = f"De achitat astăzi: {format_ron(display_value)} lei"
-                    else:
-                        day_unit = "zi" if days_until_due == 1 else "zile"
-                        msg = f"Sumă de {format_ron(display_value)} lei scadentă pe {month_name_ro} ({days_until_due} {day_unit})"
+                    msg = format_invoice_due_message(display_value, raw_date)
                     attributes[f"Factură {idx} ({invoice_number})"] = msg
                 elif display_value < 0:
                     total_credit += abs(display_value)
@@ -1103,27 +1061,6 @@ class ConventieConsumSensor(EonRomaniaEntity):
 
     _attr_icon = "mdi:chart-bar"
     _attr_translation_key = "conventie_consum"
-
-    MONTH_MAPPING = {
-        "valueMonth1": "ianuarie", "valueMonth2": "februarie", "valueMonth3": "martie",
-        "valueMonth4": "aprilie", "valueMonth5": "mai", "valueMonth6": "iunie",
-        "valueMonth7": "iulie", "valueMonth8": "august", "valueMonth9": "septembrie",
-        "valueMonth10": "octombrie", "valueMonth11": "noiembrie", "valueMonth12": "decembrie",
-    }
-
-    UTILITY_TYPE_LABEL = {
-        "01": "Electricitate",
-        "02": "Gaz",
-    }
-
-    UNIT_NORMALIZE = {
-        "M3": "m³",
-        "m3": "m³",
-        "KWH": "kWh",
-        "kwh": "kWh",
-        "MWH": "MWh",
-        "mwh": "MWh",
-    }
 
     def __init__(self, coordinator, config_entry):
         super().__init__(coordinator, config_entry)
@@ -1188,7 +1125,7 @@ class ConventieConsumSensor(EonRomaniaEntity):
         unit = "m³" if is_gaz else "kWh"
         attributes = {
             f"Convenție din luna {month}": f"{convention_line.get(key, 0)} {unit}"
-            for key, month in self.MONTH_MAPPING.items()
+            for key, month in CONVENTION_MONTH_MAPPING.items()
         }
         attributes["attribution"] = ATTRIBUTION
         return attributes
@@ -1215,16 +1152,16 @@ class ConventieConsumSensor(EonRomaniaEntity):
                 for s in subcontracts:
                     if isinstance(s, dict) and s.get("accountContract") == sc_code:
                         ut = s.get("utilityType", "")
-                        utility_label = self.UTILITY_TYPE_LABEL.get(ut, sc_code)
+                        utility_label = UTILITY_TYPE_LABEL.get(ut, sc_code)
                         break
 
             # Detectăm unitatea de măsură din convenție (normalizată)
             um_raw = conv.get("unitMeasure", "")
-            unit = self.UNIT_NORMALIZE.get(um_raw, um_raw) if um_raw else "m³"
+            unit = UNIT_NORMALIZE.get(um_raw, um_raw) if um_raw else "m³"
 
             attributes[f"──── {utility_label} ────"] = ""
 
-            for key, month in self.MONTH_MAPPING.items():
+            for key, month in CONVENTION_MONTH_MAPPING.items():
                 value = convention_line.get(key, 0)
                 attributes[f"{utility_label} — {month}"] = f"{value} {unit}"
 
@@ -1393,22 +1330,18 @@ class ArhivaComparareConsumAnualGraficSensor(EonRomaniaEntity):
 
     @property
     def extra_state_attributes(self):
-        month_names = [
-            "ianuarie", "februarie", "martie", "aprilie", "mai", "iunie",
-            "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie",
-        ]
         unit = self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
         attributes = {"attribution": ATTRIBUTION}
         attributes.update(
             {
-                f"Consum lunar {month_names[int(month) - 1]}": f"{format_number_ro(value['consumptionValue'])} {unit}"
+                f"Consum lunar {MONTHS_NUM_RO.get(int(month), 'necunoscut')}": f"{format_number_ro(value['consumptionValue'])} {unit}"
                 for month, value in sorted(self._monthly_values.items(), key=lambda item: int(item[0]))
             }
         )
         attributes["────"] = ""
         attributes.update(
             {
-                f"Consum mediu zilnic în {month_names[int(month) - 1]}": f"{format_number_ro(value['consumptionValueDayValue'])} {unit}"
+                f"Consum mediu zilnic în {MONTHS_NUM_RO.get(int(month), 'necunoscut')}": f"{format_number_ro(value['consumptionValueDayValue'])} {unit}"
                 for month, value in sorted(self._monthly_values.items(), key=lambda item: int(item[0]))
             }
         )
