@@ -15,7 +15,7 @@ API_VERSION_METERREADINGS = "v1"
 # ──────────────────────────────────────────────
 # Configurare implicită
 # ──────────────────────────────────────────────
-DEFAULT_UPDATE_INTERVAL = 3600  # Interval de actualizare în secunde (1 oră)
+DEFAULT_UPDATE_INTERVAL = 21600  # Interval de actualizare în secunde (6 ore)
 
 # ──────────────────────────────────────────────
 # Autentificare
