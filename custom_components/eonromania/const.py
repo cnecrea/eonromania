@@ -3,6 +3,7 @@
 from homeassistant.const import Platform
 
 DOMAIN = "eonromania"
+DOMAIN_TOKEN_STORE = f"{DOMAIN}_token_store"  # Cheie în hass.data pentru token-uri MFA
 
 # ──────────────────────────────────────────────
 # Versiuni API (configurabile)
