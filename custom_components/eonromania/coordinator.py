@@ -12,6 +12,7 @@ import logging
 from datetime import timedelta
 import json
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -36,6 +37,7 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         cod_incasare: str,
         update_interval: int,
         is_collective: bool = False,
+        config_entry: ConfigEntry | None = None,
     ):
         """Inițializează coordinatorul cu parametrii necesari."""
         super().__init__(
@@ -47,6 +49,7 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         self.api_client = api_client
         self.cod_incasare = cod_incasare
         self.is_collective = is_collective
+        self._config_entry = config_entry
 
         # Capabilități detectate la prima actualizare
         # None = nedeterminate (prima actualizare le va seta)
@@ -127,14 +130,14 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         )
 
         try:
-            # Login proactiv dacă tokenul e expirat sau absent
+            # Asigurăm token valid — refresh_token mai întâi, apoi login complet
+            # _ensure_token_valid() folosește refresh_token (fără MFA!) ca prim pas
             if not self.api_client.is_token_likely_valid():
                 _LOGGER.debug(
-                    "Token absent sau probabil expirat. Se face login proactiv (contract=%s).",
+                    "Token absent sau probabil expirat. Se asigură token valid (contract=%s).",
                     cod,
                 )
-                self.api_client.invalidate_token()
-                ok = await self.api_client.async_login()
+                ok = await self.api_client._ensure_token_valid()
                 if not ok:
                     _LOGGER.warning(
                         "Autentificare eșuată la API-ul E·ON (contract=%s).", cod
@@ -392,6 +395,9 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
         # Incrementăm contorul de refresh
         self._refresh_counter += 1
 
+        # Persistăm token-ul curent în config_entry.data (pentru restart HA)
+        self._persist_token()
+
         # Sumar
         _LOGGER.debug(
             "Actualizare E·ON finalizată (contract=%s, colectiv=%s, refresh=#%s).",
@@ -423,6 +429,38 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             "um": um,
             "is_collective": self.is_collective,
         }
+
+    def _persist_token(self) -> None:
+        """Persistă token-ul curent în config_entry.data pentru restart HA.
+
+        Salvează refresh_token + access_token astfel încât la restart
+        coordinatorul poate folosi refresh_token fără a necesita MFA.
+        """
+        if self._config_entry is None:
+            return
+        token_data = self.api_client.export_token_data()
+        if token_data is None:
+            return
+
+        current_data = dict(self._config_entry.data)
+        old_token = current_data.get("token_data", {})
+
+        # Actualizăm doar dacă s-a schimbat ceva (evităm scrieri inutile)
+        if (
+            old_token.get("access_token") == token_data.get("access_token")
+            and old_token.get("refresh_token") == token_data.get("refresh_token")
+        ):
+            return
+
+        current_data["token_data"] = token_data
+        self.hass.config_entries.async_update_entry(
+            self._config_entry, data=current_data
+        )
+        _LOGGER.debug(
+            "Token persistat în config_entry (contract=%s, access=%s...).",
+            self.cod_incasare,
+            token_data["access_token"][:8] if token_data.get("access_token") else "None",
+        )
 
     @staticmethod
     def _detect_unit(graphic_consumption_data) -> str:
