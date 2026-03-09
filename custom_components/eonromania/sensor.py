@@ -79,17 +79,22 @@ def _build_sensors_for_coordinator(
     # ── 1. Senzori de bază (mereu prezenți) ──
     sensors.append(ContractDetailsSensor(coordinator, config_entry))
     sensors.append(FacturaRestantaSensor(coordinator, config_entry))
-    sensors.append(FacturaProsumSensor(coordinator, config_entry))
     sensors.append(InvoiceBalanceSensor(coordinator, config_entry))
-    sensors.append(InvoiceBalanceProsumSensor(coordinator, config_entry))
 
     # Convenție consum — funcționează atât pe individuale cât și pe colective/DUO
     sensors.append(ConventieConsumSensor(coordinator, config_entry))
 
-    # ── 2. Senzori condiționali (date disponibile) ──
-    if coordinator.data:
-        if coordinator.data.get("rescheduling_plans"):
-            sensors.append(ReschedulingPlansSensor(coordinator, config_entry))
+    # ── 2. Senzori condiționali (pe baza capabilităților detectate) ──
+    caps = coordinator.capabilities
+
+    # Prosum — doar dacă utilizatorul are prosum
+    if caps and caps.get("has_prosum"):
+        sensors.append(FacturaProsumSensor(coordinator, config_entry))
+        sensors.append(InvoiceBalanceProsumSensor(coordinator, config_entry))
+
+    # Eșalonare — doar dacă utilizatorul are planuri de eșalonare
+    if caps and caps.get("has_rescheduling"):
+        sensors.append(ReschedulingPlansSensor(coordinator, config_entry))
 
     # ── 3. CitireIndexSensor + CitirePermisaSensor (per dispozitiv) ──
     if not is_collective:
@@ -151,17 +156,17 @@ def _build_sensors_for_coordinator(
                         subcontract_code=sc_code, utility_type=utility_type,
                     ))
 
-    # ── 4. ArhivaSensor (per an) ──
+    # ── 4. ArhivaSensor (doar ultimul an) ──
     # (nu se creează pentru contracte colective — endpoint-ul nu funcționează)
     arhiva_data = coordinator.data.get("meter_history") if coordinator.data else None
     if arhiva_data and not is_collective:
         history_list = arhiva_data.get("history", [])
-        for item in history_list:
-            year = item.get("year")
-            if year:
-                sensors.append(ArhivaSensor(coordinator, config_entry, year))
+        valid_years = [item.get("year") for item in history_list if item.get("year")]
+        if valid_years:
+            max_year = max(valid_years)
+            sensors.append(ArhivaSensor(coordinator, config_entry, max_year))
 
-    # ── 5. ArhivaPlatiSensor (per an) ──
+    # ── 5. ArhivaPlatiSensor (doar ultimul an) ──
     payments_list = coordinator.data.get("payments", []) if coordinator.data else []
     if payments_list:
         payments_by_year: dict[int, list] = defaultdict(list)
@@ -174,10 +179,11 @@ def _build_sensors_for_coordinator(
                 payments_by_year[year].append(payment)
             except ValueError:
                 continue
-        for year in payments_by_year:
-            sensors.append(ArhivaPlatiSensor(coordinator, config_entry, year))
+        if payments_by_year:
+            max_year = max(payments_by_year.keys())
+            sensors.append(ArhivaPlatiSensor(coordinator, config_entry, max_year))
 
-    # ── 6. ArhivaComparareConsumAnualGraficSensor (per an) ──
+    # ── 6. ArhivaComparareConsumAnualGraficSensor (doar ultimul an) ──
     # (nu se creează pentru contracte colective — endpoint-ul nu funcționează)
     comparareanualagrafic_data = coordinator.data.get("graphic_consumption", {}) if (coordinator.data and not is_collective) else {}
     if isinstance(comparareanualagrafic_data, dict) and "consumption" in comparareanualagrafic_data:
@@ -199,8 +205,9 @@ def _build_sensors_for_coordinator(
             for year, monthly_values in yearly_data.items()
             if any(v["consumptionValue"] > 0 or v["consumptionValueDayValue"] > 0 for v in monthly_values.values())
         }
-        for year, monthly_values in cleaned_yearly_data.items():
-            sensors.append(ArhivaComparareConsumAnualGraficSensor(coordinator, config_entry, year, monthly_values))
+        if cleaned_yearly_data:
+            max_year = max(cleaned_yearly_data.keys())
+            sensors.append(ArhivaComparareConsumAnualGraficSensor(coordinator, config_entry, max_year, cleaned_yearly_data[max_year]))
 
     return sensors
 
