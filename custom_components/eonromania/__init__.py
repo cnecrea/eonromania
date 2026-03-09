@@ -9,7 +9,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, PLATFORMS
+from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, DOMAIN_TOKEN_STORE, PLATFORMS
 from .api import EonApiClient
 from .coordinator import EonRomaniaCoordinator
 
@@ -64,6 +64,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Un singur client API partajat (un singur cont, un singur token)
     api_client = EonApiClient(session, username, password)
 
+    # Injectăm token-ul salvat — prioritate: hass.data (proaspăt, de la config_flow),
+    # apoi config_entry.data (persistent, pentru restart HA)
+    token_store = hass.data.get(DOMAIN_TOKEN_STORE, {})
+    stored_token = token_store.pop(username.lower(), None)
+    if stored_token:
+        api_client.inject_token(stored_token)
+        _LOGGER.debug(
+            "Token injectat din config_flow (proaspăt) pentru %s (entry_id=%s).",
+            username, entry.entry_id,
+        )
+    elif entry.data.get("token_data"):
+        api_client.inject_token(entry.data["token_data"])
+        _LOGGER.debug(
+            "Token injectat din config_entry.data (persistent) pentru %s (entry_id=%s).",
+            username, entry.entry_id,
+        )
+    else:
+        _LOGGER.debug(
+            "Niciun token salvat disponibil pentru %s (entry_id=%s). Se va face login.",
+            username, entry.entry_id,
+        )
+    # Curățăm store-ul dacă e gol
+    if DOMAIN_TOKEN_STORE in hass.data and not hass.data[DOMAIN_TOKEN_STORE]:
+        hass.data.pop(DOMAIN_TOKEN_STORE, None)
+
     # Metadatele contractelor (tip utilitate, colectiv/nu)
     contract_metadata = entry.data.get("contract_metadata", {})
 
@@ -80,6 +105,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             cod_incasare=cod,
             update_interval=update_interval,
             is_collective=is_collective,
+            config_entry=entry,
         )
 
         try:
