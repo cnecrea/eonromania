@@ -523,13 +523,14 @@ class EonApiClient:
         )
         return result
 
-    async def async_fetch_invoices_prosum(self, account_contract: str):
-        """Obține toate facturile de prosumator (paginate)."""
+    async def async_fetch_invoices_prosum(self, account_contract: str, max_pages: int | None = None):
+        """Obține facturile de prosumator (paginate)."""
         result = await self._paginated_request(
             base_url=URL_INVOICES_PROSUM,
             params={"accountContract": account_contract},
             list_key="list",
             label=f"invoices_prosum ({account_contract})",
+            max_pages=max_pages,
         )
         # Debug clar pentru datele cumulate
         _LOGGER.debug(
@@ -582,13 +583,14 @@ class EonApiClient:
         )
         return result
 
-    async def async_fetch_payments(self, account_contract: str):
-        """Obține toate înregistrările de plăți (paginate)."""
+    async def async_fetch_payments(self, account_contract: str, max_pages: int | None = None):
+        """Obține înregistrările de plăți (paginate)."""
         result = await self._paginated_request(
             base_url=URL_PAYMENT_LIST,
             params={"accountContract": account_contract},
             list_key="list",
             label=f"payments ({account_contract})",
+            max_pages=max_pages,
         )
         # Debug clar pentru datele cumulate
         _LOGGER.debug(
@@ -918,8 +920,13 @@ class EonApiClient:
         params: dict,
         list_key: str = "list",
         label: str = "paginated",
+        max_pages: int | None = None,
     ):
-        """Obține toate paginile unui endpoint paginat. Returnează lista cumulată."""
+        """Obține paginile unui endpoint paginat. Returnează lista cumulată.
+
+        Args:
+            max_pages: Număr maxim de pagini de adus. None = toate paginile.
+        """
         if not await self._ensure_token_valid():
             _LOGGER.error("[%s] Nu s-a putut obține un token valid.", label)
             return None
@@ -967,6 +974,9 @@ class EonApiClient:
                         )
 
                         if not has_next:
+                            break
+                        if max_pages is not None and page >= max_pages:
+                            _LOGGER.debug("[%s] Limită paginare atinsă (%s pagini).", label, max_pages)
                             break
                         page += 1
                         continue
