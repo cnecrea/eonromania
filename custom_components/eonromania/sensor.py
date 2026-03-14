@@ -834,20 +834,12 @@ class CitirePermisaSensor(EonRomaniaEntity):
         start_date_str = reading_period.get("startDate")
         end_date_str = reading_period.get("endDate")
 
-        # canBeChangedTill din index poate extinde fereastra
-        index_details = citireindex_data.get("indexDetails", {})
-        devices = index_details.get("devices", [])
-        can_be_changed_till_str = None
-        if devices:
-            indexes = devices[0].get("indexes", [])
-            if indexes:
-                can_be_changed_till_str = indexes[0].get("canBeChangedTill")
-
+        # Fallback: verificare manuală pe endDate din readingPeriod
         try:
             today = dt_util.now().replace(tzinfo=None)
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d") if start_date_str else None
-            # Limita superioară: canBeChangedTill dacă există, altfel endDate
-            upper_str = can_be_changed_till_str or end_date_str
+            # Limita superioară: endDate din readingPeriod (nu canBeChangedTill care e limita de modificare)
+            upper_str = end_date_str
             upper_date = None
             if upper_str:
                 for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
@@ -891,15 +883,19 @@ class CitirePermisaSensor(EonRomaniaEntity):
             if dev.get("deviceNumber") == self.device_number:
                 indexes = dev.get("indexes", [{}])[0]
                 can_be_changed_till = indexes.get("canBeChangedTill")
-                # Dacă canBeChangedTill e null, folosim endDate din readingPeriod
-                deadline = can_be_changed_till or reading_period.get("endDate")
+                end_date = reading_period.get("endDate")
+                start_date = reading_period.get("startDate")
+
+                # endDate = limita de trimitere index; canBeChangedTill = limita de modificare index trimis
+                deadline = f"{end_date} 23:59:59" if end_date else None
 
                 attributes = {}
                 attributes["ID intern citire contor (SAP)"] = indexes.get("ablbelnr", "Necunoscut")
                 attributes["Indexul poate fi trimis până la"] = deadline or "Perioada nu a fost stabilită"
 
-                start_date = reading_period.get("startDate")
-                end_date = reading_period.get("endDate")
+                if can_be_changed_till:
+                    attributes["Indexul poate fi modificat până la"] = can_be_changed_till
+
                 if start_date and end_date:
                     attributes["Perioadă transmitere index"] = f"{start_date} — {end_date}"
 
