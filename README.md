@@ -7,11 +7,8 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub Release](https://img.shields.io/github/v/release/cnecrea/eonromania)](https://github.com/cnecrea/eonromania/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/cnecrea/eonromania?style=flat&logo=github)](https://github.com/cnecrea/eonromania/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/cnecrea/eonromania?style=flat&logo=github)](https://github.com/cnecrea/eonromania/network/members)
-[![GitHub Issues](https://img.shields.io/github/issues/cnecrea/eonromania)](https://github.com/cnecrea/eonromania/issues)
-[![Ultimul Commit](https://img.shields.io/github/last-commit/cnecrea/eonromania)](https://github.com/cnecrea/eonromania/commits/main)
-[![Commit-uri/lună](https://img.shields.io/github/commit-activity/m/cnecrea/eonromania)](https://github.com/cnecrea/eonromania/commits/main)
-[![Limbaj Principal](https://img.shields.io/github/languages/top/cnecrea/eonromania)](https://github.com/cnecrea/eonromania)
+[![Total descărcări](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/cnecrea/eonromania/main/statistici/shields/descarcari.json)](https://github.com/cnecrea/eonromania/releases)
+[![Descărcări ultima versiune](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/cnecrea/eonromania/main/statistici/shields/ultima_release.json)](https://github.com/cnecrea/eonromania/releases/latest)
 ![Afișări](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fcnecrea%2Feonromania&label=afi%C8%99%C4%83ri&icon=github&color=%23198754&message=&style=flat&tz=Europe%2FBucharest)
 
 Integrare custom pentru [Home Assistant](https://www.home-assistant.io/) care monitorizează datele contractuale, consumul și facturile prin API-ul [E·ON România](https://www.eon.ro/) (aplicația mobilă E·ON Myline).
