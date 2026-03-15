@@ -3,20 +3,16 @@
 # E·ON România — Integrare Home Assistant
 
 
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11%2B-41BDF5?logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub Release](https://img.shields.io/github/v/release/cnecrea/eonromania)](https://github.com/cnecrea/eonromania/releases)
-[![Licență](https://img.shields.io/github/license/cnecrea/eonromania)](https://github.com/cnecrea/eonromania/blob/main/LICENSE.md)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11%2B-41BDF5?logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
 [![GitHub Stars](https://img.shields.io/github/stars/cnecrea/eonromania?style=flat&logo=github)](https://github.com/cnecrea/eonromania/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/cnecrea/eonromania?style=flat&logo=github)](https://github.com/cnecrea/eonromania/network/members)
-[![GitHub Watchers](https://img.shields.io/github/watchers/cnecrea/eonromania?style=flat&logo=github)](https://github.com/cnecrea/eonromania/watchers)
 [![GitHub Issues](https://img.shields.io/github/issues/cnecrea/eonromania)](https://github.com/cnecrea/eonromania/issues)
 [![Ultimul Commit](https://img.shields.io/github/last-commit/cnecrea/eonromania)](https://github.com/cnecrea/eonromania/commits/main)
 [![Commit-uri/lună](https://img.shields.io/github/commit-activity/m/cnecrea/eonromania)](https://github.com/cnecrea/eonromania/commits/main)
-[![Dimensiune Repo](https://img.shields.io/github/repo-size/cnecrea/eonromania)](https://github.com/cnecrea/eonromania)
 [![Limbaj Principal](https://img.shields.io/github/languages/top/cnecrea/eonromania)](https://github.com/cnecrea/eonromania)
-![Badge](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fcnecrea%2Feonromania&label=afi%C8%99%C4%83ri&icon=github&color=%23198754&message=&style=flat&tz=Europe%2FBucharest)
-
+![Afișări](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2Fcnecrea%2Feonromania&label=afi%C8%99%C4%83ri&icon=github&color=%23198754&message=&style=flat&tz=Europe%2FBucharest)
 
 Integrare custom pentru [Home Assistant](https://www.home-assistant.io/) care monitorizează datele contractuale, consumul și facturile prin API-ul [E·ON România](https://www.eon.ro/) (aplicația mobilă E·ON Myline).
 
