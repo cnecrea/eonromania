@@ -232,31 +232,40 @@ def genereaza_shields(releases: dict, community: dict,
     """Generează fișierele JSON pentru badge-urile din README.
 
     Badge-uri generate:
-    - descarcari.json: total downloads (toate release-urile)
-    - ultima_release.json: downloads ultima versiune
+    - descarcari.json: clone-uri totale cumulate (metrica reală de adopție HACS)
+    - ultima_release.json: ultima versiune + clone-uri 14 zile
     - stars.json: total stars
-    - vizitatori.json: vizitatori unici luna curentă
+    - vizitatori.json: vizitatori unici ultimele 14 zile
+    - clone.json: clone unice ultimele 14 zile
     """
     print("Generez badge-uri shields.io...")
 
-    # ── Total descărcări (toate release-urile) ──
-    total_downloads = sum(releases.values())
+    zilnic = stats.get("zilnic", {})
+
+    # ── Total clone cumulate (toate zilele colectate) ──
+    total_clone_cumulate = sum(
+        zi.get("clones_total", 0)
+        for zi in zilnic.values()
+    )
     _scrie_shield(
         "descarcari",
-        "descărcări",
-        _format_numar(total_downloads),
+        "instalări (clone)",
+        _format_numar(total_clone_cumulate),
         "blue",
     )
 
-    # ── Descărcări ultima versiune ──
+    # ── Ultima versiune + clone recente ──
     if releases:
-        # Ultima versiune = primul tag sortat descrescător (semver)
         tags_sortate = sorted(releases.keys(), reverse=True)
         ultim_tag = tags_sortate[0]
+        clone_14z = sum(
+            zi.get("clones_unice", 0)
+            for zi in zilnic.values()
+        )
         _scrie_shield(
             "ultima_release",
             f"{ultim_tag}",
-            f"{_format_numar(releases[ultim_tag])} descărcări",
+            f"{_format_numar(clone_14z)} clone (14z)",
             "green",
         )
 

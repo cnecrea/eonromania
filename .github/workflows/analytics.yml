@@ -27,7 +27,7 @@ jobs:
 
       - name: Collect analytics
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_ANALYTICS }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: python .github/scripts/collect_analytics.py
 
