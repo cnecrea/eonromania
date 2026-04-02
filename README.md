@@ -26,6 +26,7 @@ Oferă senzori dedicați per cod de încasare pentru contract, index curent, sol
 - **Arhivă consum** — consum lunar și mediu zilnic per an, cu separatorul zecimal românesc (virgulă)
 - **Adrese normalizate** — formatare corectă din datele API în format românesc
 - **Mapping județe** — coduri scurte (AB, BV, CJ) convertite automat în denumiri complete (Alba, Brașov, Cluj)
+- **Sistem de licență** — fără licență validă se afișează doar senzorul „Licență necesară"
 - **Reconfigurare fără reinstalare** — OptionsFlow pentru modificarea credențialelor și selecției contractelor
 
 ---
@@ -96,7 +97,11 @@ Bulevardul Independenței 42, Brașov, jud. Brașov ➜ 009900123456 (Colectiv/D
 
 Selectezi individual sau bifezi „Selectează toate contractele".
 
-### Pasul 3 — Reconfigurare (opțional)
+### Pasul 3 — Licență
+
+Integrarea necesită o licență validă. Poți achiziționa una de la [hubinteligent.org/licenta/eonmyline](https://hubinteligent.org/licenta/eonmyline). Licența se introduce din **OptionsFlow** (Setări → Dispozitive și Servicii → E·ON România → Configurare → Licență).
+
+### Pasul 5 — Reconfigurare (opțional)
 
 Toate setările pot fi modificate după instalare, fără a șterge integrarea:
 
@@ -126,6 +131,7 @@ Integrarea creează un **device** per contract selectat. Sub fiecare device se c
 | `Factură restantă prosumator` | Facturi prosumator (datorii + credite) | Da / Nu |
 | `Convenție consum` | Consum lunar convenit | Da / Nu |
 | `Planuri eșalonare` | Planuri de eșalonare (condiționat) | Număr planuri |
+| `Licență` | Status licență | Licență necesară |
 | `{an} → Arhivă index gaz` / `energie electrică` | Indexuri lunare per an | Număr citiri |
 | `{an} → Arhivă plăți` | Plăți lunare per an | Număr plăți |
 | `{an} → Arhivă consum gaz` / `energie electrică` | Consum lunar + mediu zilnic per an | Total consum |
@@ -369,6 +375,7 @@ custom_components/eonromania/
 ├── const.py             # Constante, URL-uri API
 ├── coordinator.py       # DataUpdateCoordinator — fetch paralel per contract (inclusiv DUO)
 ├── helpers.py           # Funcții utilitare, mapping județe, formatare adrese, traduceri
+├── license.py           # Manager licență (server-side v3.3, Ed25519, HMAC-SHA256)
 ├── manifest.json        # Metadata integrare
 ├── sensor.py            # Clase senzor cu suport individual + colectiv/DUO
 ├── strings.json         # Traduceri implicite (engleză)
@@ -383,6 +390,7 @@ custom_components/eonromania/
 - **Home Assistant** 2024.x sau mai nou (pattern `entry.runtime_data`)
 - **HACS** (opțional, pentru instalare ușoară)
 - **Cont E·ON Myline** activ cu email + parolă
+- **Licență** validă — [hubinteligent.org/licenta/eonmyline](https://hubinteligent.org/licenta/eonmyline)
 
 Nu necesită dependențe externe (nu instalează pachete pip/npm).
 
