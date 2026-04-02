@@ -10,7 +10,7 @@ Acest ghid acoperă fiecare pas al instalării și configurării integrării E·
 
 - **Home Assistant** versiunea 2024.x sau mai nouă (necesită pattern `entry.runtime_data`)
 - **Cont E·ON Myline** activ — cu email și parolă funcționale pe aplicația mobilă E·ON Myline
-- **Licență** validă — de la [hubinteligent.org/licenta/eonmyline](https://hubinteligent.org/licenta/eonmyline)
+- **Licență** validă — de la [hubinteligent.org/licenta/eonromania](https://hubinteligent.org/licenta/eonromania)
 - **HACS** instalat (opțional, dar recomandat) — [instrucțiuni HACS](https://hacs.xyz/docs/setup/download)
 
 ---
@@ -131,7 +131,7 @@ Ai două opțiuni:
 ### Pasul 4 — Licență
 
 Integrarea necesită o **licență validă** pentru a funcționa. Fără licență:
-- Se creează doar senzorul `sensor.eonmyline_{nlc}_licenta` cu valoarea „Licență necesară"
+- Se creează doar senzorul `sensor.eonromania_{nlc}_licenta` cu valoarea „Licență necesară"
 - Toți senzorii normali și butoanele sunt dezactivate
 
 Pentru a introduce licența:
@@ -141,7 +141,7 @@ Pentru a introduce licența:
 4. Introdu cheia de licență
 5. Click **Salvează**
 
-Licențe disponibile la: [hubinteligent.org/licenta/eonmyline](https://hubinteligent.org/licenta/eonmyline)
+Licențe disponibile la: [hubinteligent.org/licenta/eonromania](https://hubinteligent.org/licenta/eonromania)
 
 ### Pasul 6 — Confirmă
 

@@ -99,7 +99,7 @@ Selectezi individual sau bifezi „Selectează toate contractele".
 
 ### Pasul 3 — Licență
 
-Integrarea necesită o licență validă. Poți achiziționa una de la [hubinteligent.org/licenta/eonmyline](https://hubinteligent.org/licenta/eonmyline). Licența se introduce din **OptionsFlow** (Setări → Dispozitive și Servicii → E·ON România → Configurare → Licență).
+Integrarea necesită o licență validă. Poți achiziționa una de la [hubinteligent.org/licenta/eonromania](https://hubinteligent.org/licenta/eonromania). Licența se introduce din **OptionsFlow** (Setări → Dispozitive și Servicii → E·ON România → Configurare → Licență).
 
 ### Pasul 5 — Reconfigurare (opțional)
 
@@ -390,7 +390,7 @@ custom_components/eonromania/
 - **Home Assistant** 2024.x sau mai nou (pattern `entry.runtime_data`)
 - **HACS** (opțional, pentru instalare ușoară)
 - **Cont E·ON Myline** activ cu email + parolă
-- **Licență** validă — [hubinteligent.org/licenta/eonmyline](https://hubinteligent.org/licenta/eonromania)
+- **Licență** validă — [hubinteligent.org/licenta/eonromania](https://hubinteligent.org/licenta/eonromania)
 
 Nu necesită dependențe externe (nu instalează pachete pip/npm).
 
