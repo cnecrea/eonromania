@@ -18,6 +18,8 @@
 - [De ce valorile sunt afișate cu punct și virgulă (1.234,56)?](#de-ce-valorile-sunt-afișate-cu-punct-și-virgulă-123456)
 - [Am schimbat opțiunile integrării. Trebuie să restartez?](#am-schimbat-opțiunile-integrării-trebuie-să-restartez)
 - [Trebuie să șterg și readaug integrarea la actualizare?](#trebuie-să-șterg-și-readaug-integrarea-la-actualizare)
+- [Ce e licența și de ce am nevoie de ea?](#ce-e-licența-și-de-ce-am-nevoie-de-ea)
+- [Am introdus licența dar senzorii tot arată „Licență necesară". De ce?](#am-introdus-licența-dar-senzorii-tot-arată-licență-necesară-de-ce)
 - [Îmi place proiectul. Cum pot să-l susțin?](#îmi-place-proiectul-cum-pot-să-l-susțin)
 
 ---
@@ -303,6 +305,37 @@ De asemenea, dacă modifici credențialele (username, parolă) din opțiuni, int
 De regulă nu. Setările sunt stocate în baza de date HA, nu în fișiere. Actualizarea suprascrie doar codul.
 
 **Excepție v3.0.0:** Dacă actualizezi de la v1/v2 la v3, integrarea include migrare automată care convertește formatul vechi (un singur cod de încasare) în formatul nou (listă de contracte). Nu trebuie să faci nimic manual. Dacă totuși apar probleme, șterge integrarea și readaug-o.
+
+---
+
+## Ce e licența și de ce am nevoie de ea?
+
+[↑ Înapoi la cuprins](#top)
+
+Integrarea folosește un sistem de licențiere server-side (v3.3) cu semnături Ed25519 și HMAC-SHA256. Fără o licență validă, integrarea afișează doar senzorul „Licență necesară" și nu creează senzori sau butoane funcționale.
+
+Licența se achiziționează de la: [hubinteligent.org/licenta/eonmyline](https://hubinteligent.org/licenta/eonmyline)
+
+După achiziție, introdu cheia de licență din OptionsFlow:
+1. **Setări** → **Dispozitive și Servicii** → **E·ON România** → **Configurare**
+2. Selectează **Licență**
+3. Completează câmpul „Cheie licență"
+4. Salvează
+
+---
+
+## Am introdus licența dar senzorii tot arată „Licență necesară". De ce?
+
+[↑ Înapoi la cuprins](#top)
+
+Câteva cauze posibile:
+
+1. **Licența nu a fost validată** — verifică logurile pentru mesaje cu `LICENSE`
+2. **Serverul de licențe nu este accesibil** — dacă HA nu are acces la internet, validarea eșuează
+3. **Cheie greșită** — verifică că ai copiat cheia corect, fără spații suplimentare
+4. **Restartare necesară** — în rare cazuri, un restart al HA poate rezolva problema
+
+Activează debug logging ([DEBUG.md](DEBUG.md)) și caută mesaje legate de licență.
 
 ---
 

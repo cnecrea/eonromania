@@ -10,6 +10,7 @@ Acest ghid acoperă fiecare pas al instalării și configurării integrării E·
 
 - **Home Assistant** versiunea 2024.x sau mai nouă (necesită pattern `entry.runtime_data`)
 - **Cont E·ON Myline** activ — cu email și parolă funcționale pe aplicația mobilă E·ON Myline
+- **Licență** validă — de la [hubinteligent.org/licenta/eonmyline](https://hubinteligent.org/licenta/eonmyline)
 - **HACS** instalat (opțional, dar recomandat) — [instrucțiuni HACS](https://hacs.xyz/docs/setup/download)
 
 ---
@@ -127,7 +128,22 @@ Ai două opțiuni:
 
 **Contracte DUO**: contractele colective apar cu eticheta `(Colectiv/DUO)`. La selectare, integrarea descoperă automat subcontractele (gaz + electricitate) și creează senzori dedicați per subcontract.
 
-### Pasul 4 — Confirmă
+### Pasul 4 — Licență
+
+Integrarea necesită o **licență validă** pentru a funcționa. Fără licență:
+- Se creează doar senzorul `sensor.eonmyline_{nlc}_licenta` cu valoarea „Licență necesară"
+- Toți senzorii normali și butoanele sunt dezactivate
+
+Pentru a introduce licența:
+1. **Setări** → **Dispozitive și Servicii**
+2. Găsește **E·ON România** → click pe **Configurare**
+3. Selectează **Licență**
+4. Introdu cheia de licență
+5. Click **Salvează**
+
+Licențe disponibile la: [hubinteligent.org/licenta/eonmyline](https://hubinteligent.org/licenta/eonmyline)
+
+### Pasul 6 — Confirmă
 
 Click **Salvează**. Integrarea se instalează și creează:
 - 1 device per contract selectat

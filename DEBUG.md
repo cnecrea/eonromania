@@ -157,6 +157,14 @@ DEBUG Actualizare E·ON finalizată (contract=009900123456, colectiv=True). Endp
 
 ## 5. Situații normale (nu sunt erori)
 
+### Licență — heartbeat
+
+```
+[LICENSE] Heartbeat OK. Licența este validă (expiră: 2027-01-15).
+```
+
+**Cauza**: verificarea periodică a licenței cu serverul a reușit. Comportament normal.
+
 ### Token reînnoit automat
 
 ```
@@ -248,6 +256,21 @@ DUO list (collective) a returnat None sau structură invalidă (contract=0099001
 **Cauza**: endpoint-ul `account-contracts/list?collectiveContract=...` nu a returnat date.
 
 **Rezolvare**: verifică dacă codul colectiv este corect, dacă contul are efectiv subcontracte, sau dacă API-ul E·ON este disponibil.
+
+### Licență invalidă
+
+```
+[LICENSE] Licența nu este validă. Motiv: expired / invalid_key / server_unreachable.
+[LICENSE] Se creează doar senzorul LicentaNecesaraSensor.
+```
+
+**Cauza**: licența a expirat, cheia este greșită, sau serverul de licențe nu este accesibil.
+
+**Rezolvare**:
+1. Verifică cheia de licență în OptionsFlow (Setări → Dispozitive și Servicii → E·ON România → Configurare → Licență)
+2. Dacă a expirat, reînnoiește de la [hubinteligent.org/licenta/eonmyline](https://hubinteligent.org/licenta/eonmyline)
+3. Dacă serverul nu e accesibil, există un grace period — licența rămâne validă temporar
+4. Verifică că cheia este copiată corect, fără spații suplimentare
 
 ### Eroare la trimitere index
 
