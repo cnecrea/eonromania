@@ -268,7 +268,7 @@ DUO list (collective) a returnat None sau structură invalidă (contract=0099001
 
 **Rezolvare**:
 1. Verifică cheia de licență în OptionsFlow (Setări → Dispozitive și Servicii → E·ON România → Configurare → Licență)
-2. Dacă a expirat, reînnoiește de la [hubinteligent.org/licenta/eonromania](https://hubinteligent.org/licenta/eonromania)
+2. Dacă a expirat, reînnoiește de la [hubinteligent.org/donate?ref=eonromania](https://hubinteligent.org/donate?ref=eonromania)
 3. Dacă serverul nu e accesibil, există un grace period — licența rămâne validă temporar
 4. Verifică că cheia este copiată corect, fără spații suplimentare
 
