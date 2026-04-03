@@ -99,7 +99,7 @@ Selectezi individual sau bifezi „Selectează toate contractele".
 
 ### Pasul 3 — Licență
 
-Integrarea necesită o licență validă. Poți achiziționa una de la [hubinteligent.org/licenta/eonromania](https://hubinteligent.org/licenta/eonromania). Licența se introduce din **OptionsFlow** (Setări → Dispozitive și Servicii → E·ON România → Configurare → Licență).
+Integrarea necesită o licență validă. Poți achiziționa una de la [hubinteligent.org/donate?ref=eonromania](https://hubinteligent.org/donate?ref=eonromania). Licența se introduce din **OptionsFlow** (Setări → Dispozitive și Servicii → E·ON România → Configurare → Licență).
 
 ### Pasul 5 — Reconfigurare (opțional)
 
