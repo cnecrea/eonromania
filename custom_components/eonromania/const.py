@@ -109,4 +109,4 @@ ATTRIBUTION = "Date furnizate de E·ON România"
 CONF_LICENSE_KEY = "license_key"
 LICENSE_DATA_KEY = "eonromania_license_manager"
 
-LICENSE_PURCHASE_URL: Final = "https://hubinteligent.org/licenta/eonromania"
+LICENSE_PURCHASE_URL: Final = "https://hubinteligent.org/donate?ref=eonromania"
