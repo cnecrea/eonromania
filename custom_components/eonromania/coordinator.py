@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import EonApiClient
+from .const import DOMAIN, LICENSE_DATA_KEY
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -123,6 +124,12 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             rescheduling_plans, graphic_consumption, meter_history
         Account-only: doar user-details (fără contracte)
         """
+        # Verificare licență — nu fetchuim date dacă licența/trial nu e validă
+        license_mgr = self.hass.data.get(DOMAIN, {}).get(LICENSE_DATA_KEY)
+        if license_mgr and not license_mgr.is_valid:
+            _LOGGER.debug("[EonRomania] Licență invalidă — se omit apelurile API")
+            return self.data or {}
+
         # ── Mod account_only: doar date personale ──
         if self.account_only:
             return await self._async_update_data_account_only()
