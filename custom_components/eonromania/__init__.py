@@ -1,6 +1,7 @@
 """Inițializarea integrării E·ON România."""
 
 import json
+import asyncio
 import logging
 from dataclasses import dataclass, field
 
@@ -178,6 +179,24 @@ def _schedule_license_check(hass: HomeAssistant, mgr: LicenseManager) -> None:
     domain_data["_cancel_license_check"] = async_call_later(hass, delay, _on_timer)
 
 
+async def _async_wait_license_loaded(hass: HomeAssistant) -> None:
+    """Așteaptă încărcarea managerului de licențe pornită de altă intrare.
+
+    La pornirea HA intrările aceluiași domeniu se configurează în paralel. Fără
+    această așteptare, a doua intrare găsea managerul încă neîncărcat (licență
+    „invalidă") → fără date, doar „Licență necesară" și senzorii reali scoși din
+    registry, până la un reload manual (issue reteleelectrice#15).
+    """
+    load = hass.data.get(DOMAIN, {}).get("_license_load")
+    if load is not None and not load.done():
+        try:
+            await asyncio.shield(load)
+        except Exception as err:
+            raise ConfigEntryNotReady("Managerul de licențe nu s-a putut încărca") from err
+    if LICENSE_DATA_KEY not in hass.data.get(DOMAIN, {}):
+        raise ConfigEntryNotReady("Managerul de licențe nu s-a putut încărca")
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Configurează integrarea pentru o anumită intrare (config entry)."""
     _LOGGER.info("Se configurează integrarea %s (entry_id=%s).", DOMAIN, entry.entry_id)
@@ -191,10 +210,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         # await HTTP, iar intrările configurate în paralel nu trebuie să creeze
         # manageri duplicați.
         hass.data[DOMAIN][LICENSE_DATA_KEY] = license_mgr
+        # Încărcarea e un task comun: intrările configurate în paralel o așteaptă
+        # (vezi _async_wait_license_loaded) în loc să folosească managerul neîncărcat.
+        load = hass.async_create_task(license_mgr.async_load(), f"{DOMAIN} license load")
+        hass.data[DOMAIN]["_license_load"] = load
         try:
-            await license_mgr.async_load()
+            await load
         except Exception:
             hass.data[DOMAIN].pop(LICENSE_DATA_KEY, None)
+            hass.data[DOMAIN].pop("_license_load", None)
             raise
         _LOGGER.debug(
             "[EonRomania] LicenseManager: status=%s, valid=%s, fingerprint=%s...",
@@ -223,6 +247,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 "[EonRomania] Licență activă — tip: %s",
                 license_mgr.license_type,
             )
+    else:
+        await _async_wait_license_loaded(hass)
 
     license_mgr = hass.data[DOMAIN][LICENSE_DATA_KEY]
     # La FIECARE setup — după activare, reload-ul intrărilor șterge notificările
