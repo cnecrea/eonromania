@@ -324,6 +324,9 @@ class LicentaNecesaraSensor(EonRomaniaEntity):
         super().__init__(coordinator, config_entry)
         self._attr_name = "E·ON România"
         self._attr_unique_id = f"{DOMAIN}_licenta_{self._cod_incasare}"
+        # ID consecvent cu ceilalți senzori (înainte: sensor.e_on_romania_<cod>_e_on_romania).
+        # Entitățile deja înregistrate își păstrează ID-ul din registry.
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_licenta"
 
     @property
     def native_value(self):

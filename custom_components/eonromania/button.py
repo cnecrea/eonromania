@@ -5,6 +5,8 @@ import logging
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -36,6 +38,13 @@ async def async_setup_entry(
             DOMAIN,
             config_entry.entry_id,
         )
+        # Butoanele create anterior ar rămâne orfane („indisponibile") în registry
+        registru = er.async_get(hass)
+        for entry_reg in er.async_entries_for_config_entry(
+            registru, config_entry.entry_id
+        ):
+            if entry_reg.domain == "button":
+                registru.async_remove(entry_reg.entity_id)
         return
 
     _LOGGER.debug(
@@ -181,80 +190,60 @@ class TrimiteIndexButton(CoordinatorEntity[EonRomaniaCoordinator], ButtonEntity)
         )
 
     async def async_press(self):
-        """Execută trimiterea indexului."""
+        """Execută trimiterea indexului.
+
+        Orice eșec ridică HomeAssistantError → mesajul apare în interfață
+        (înainte erorile ajungeau doar în log și apăsarea părea reușită).
+        """
         ac = self._account_contract
         utility_label = UTILITY_BUTTON_CONFIG.get(self._utility_type, {}).get("label", "necunoscut")
 
+        # 1. Citește valoarea din input_number
+        input_state = self.hass.states.get(self._input_number_entity)
+        if not input_state:
+            raise HomeAssistantError(
+                f"Nu există entitatea {self._input_number_entity}. "
+                f"Nu se poate trimite indexul (contract {ac})."
+            )
+
         try:
-            # 1. Citește valoarea din input_number
-            input_state = self.hass.states.get(self._input_number_entity)
-            if not input_state:
-                _LOGGER.error(
-                    "Nu există entitatea %s. Nu se poate trimite indexul "
-                    "(contract=%s, tip=%s).",
-                    self._input_number_entity, ac, utility_label,
-                )
-                return
+            index_value = int(float(input_state.state))
+        except (TypeError, ValueError) as err:
+            raise HomeAssistantError(
+                f"Valoare invalidă pentru {self._input_number_entity}: "
+                f"'{input_state.state}'."
+            ) from err
 
-            try:
-                index_value = int(float(input_state.state))
-            except (TypeError, ValueError):
-                _LOGGER.error(
-                    "Valoare invalidă pentru %s: '%s' (contract=%s, tip=%s).",
-                    self._input_number_entity, input_state.state,
-                    ac, utility_label,
-                )
-                return
-
-            # 2. Obține datele contorului (ablbelnr)
-            meter_data = get_meter_data(
-                self.coordinator.data, ac, is_subcontract=self._is_subcontract
-            )
-            ablbelnr = extract_ablbelnr(meter_data)
-
-            if not ablbelnr:
-                _LOGGER.error(
-                    "Nu a fost găsit ID-ul intern al contorului (ablbelnr). "
-                    "Nu se poate trimite indexul (contract=%s, tip=%s).",
-                    ac, utility_label,
-                )
-                return
-
-            _LOGGER.debug(
-                "Se trimite indexul: valoare=%s (contract=%s, tip=%s, ablbelnr=%s).",
-                index_value, ac, utility_label, ablbelnr,
+        # 2. Obține datele contorului (ablbelnr)
+        meter_data = get_meter_data(
+            self.coordinator.data, ac, is_subcontract=self._is_subcontract
+        )
+        ablbelnr = extract_ablbelnr(meter_data)
+        if not ablbelnr:
+            raise HomeAssistantError(
+                f"Nu a fost găsit ID-ul intern al contorului (contract {ac}, "
+                f"{utility_label}). Verificați dacă perioada de citire este deschisă."
             )
 
-            # 3. Construim payload-ul și trimitem
-            indexes_payload = [
-                {
-                    "ablbelnr": ablbelnr,
-                    "indexValue": index_value,
-                }
-            ]
+        _LOGGER.debug(
+            "Se trimite indexul: valoare=%s (contract=%s, tip=%s, ablbelnr=%s).",
+            index_value, ac, utility_label, ablbelnr,
+        )
 
-            result = await self.coordinator.api_client.async_submit_meter_index(
-                account_contract=ac,
-                indexes=indexes_payload,
+        # 3. Construim payload-ul și trimitem
+        result = await self.coordinator.api_client.async_submit_meter_index(
+            account_contract=ac,
+            indexes=[{"ablbelnr": ablbelnr, "indexValue": index_value}],
+        )
+        if result is None:
+            raise HomeAssistantError(
+                f"E·ON nu a acceptat indexul {index_value} (contract {ac}). "
+                "Detalii în jurnalul Home Assistant."
             )
 
-            if result is None:
-                _LOGGER.error(
-                    "Trimiterea indexului a eșuat (contract=%s, tip=%s).",
-                    ac, utility_label,
-                )
-                return
-
-            # 4. Refresh date
-            await self.coordinator.async_request_refresh()
-
-            _LOGGER.info(
-                "Index trimis cu succes: valoare=%s (contract=%s, tip=%s).",
-                index_value, ac, utility_label,
-            )
-
-        except Exception:
-            _LOGGER.exception(
-                "Eroare neașteptată la trimiterea indexului (contract=%s, tip=%s).",
-                ac, utility_label,
-            )
+        _LOGGER.info(
+            "Index trimis cu succes: valoare=%s (contract=%s, tip=%s).",
+            index_value, ac, utility_label,
+        )
+        # 4. Refresh date
+        await self.coordinator.async_request_refresh()

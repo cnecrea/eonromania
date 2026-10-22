@@ -10,7 +10,10 @@ from aiohttp import ClientSession, ClientTimeout
 from .const import (
     API_TIMEOUT,
     AUTH_VERIFY_SECRET,
+    BAD_CREDENTIALS_CODE,
     HEADERS,
+    HEADERS_WEB,
+    INVALID_HEADER_CODE,
     MFA_REQUIRED_CODE,
     TOKEN_MAX_AGE,
     TOKEN_REFRESH_THRESHOLD,
@@ -25,13 +28,16 @@ from .const import (
     URL_INVOICES_PROSUM,
     URL_INVOICES_UNPAID,
     URL_LOGIN,
+    URL_LOGIN_WEB,
     URL_METER_HISTORY,
     URL_METER_INDEX,
     URL_METER_SUBMIT,
     URL_MFA_LOGIN,
+    URL_MFA_LOGIN_WEB,
     URL_MFA_RESEND,
     URL_PAYMENT_LIST,
     URL_REFRESH_TOKEN,
+    URL_REFRESH_TOKEN_WEB,
     URL_RESCHEDULING_PLANS,
     URL_USER_DETAILS,
 )
@@ -49,6 +55,11 @@ def _safe_debug_sample(data, max_len: int = 500) -> str:
         return json.dumps(data, default=str)[:max_len]
     except Exception:  # noqa: BLE001
         return str(data)[:max_len]
+
+
+def _extract_access_token(data: dict) -> str | None:
+    """Token-ul de acces din răspuns (fluxul mobil: access_token; web: accessToken/token)."""
+    return data.get("access_token") or data.get("accessToken") or data.get("token")
 
 
 class EonApiClient:
@@ -84,6 +95,18 @@ class EonApiClient:
         # Se resetează la inject_token() (după reconfigurare prin UI)
         self._mfa_blocked: bool = False
 
+        # Fluxul de autentificare: "mobile" (aplicația Myline) sau "web" (eon.ro/myline).
+        # Header-ele tuturor cererilor urmează fluxul cu care s-a obținut token-ul.
+        self._flow: str = "mobile"
+        # Contul cere cod 2FA la login → în fundal NU mai facem login (ar trimite
+        # un email 2FA inutil); când refresh-ul nu mai merge → reautentificare din UI.
+        self._requires_mfa: bool = False
+        # Ultimul login a fost respins pentru credențiale (cod 6101)
+        self._auth_rejected: bool = False
+        # Token-ul trebuie reîmprospătat înainte de următoarea cerere (îl păstrăm:
+        # refresh-ul web are nevoie de el)
+        self._force_refresh: bool = False
+
     # ──────────────────────────────────────────
     # Proprietăți publice
     # ──────────────────────────────────────────
@@ -113,6 +136,16 @@ class EonApiClient:
         """True dacă login-ul e blocat din cauza MFA necesar în background."""
         return self._mfa_blocked
 
+    @property
+    def auth_rejected(self) -> bool:
+        """True dacă E·ON a respins credențialele la ultimul login (parolă schimbată)."""
+        return self._auth_rejected
+
+    @property
+    def _headers(self) -> dict[str, str]:
+        """Header-ele fluxului de autentificare curent."""
+        return HEADERS_WEB if self._flow == "web" else HEADERS
+
     def clear_mfa_block(self) -> None:
         """Resetează blocajul MFA (apelat după reconfigurare prin UI)."""
         self._mfa_blocked = False
@@ -121,7 +154,7 @@ class EonApiClient:
 
     def is_token_likely_valid(self) -> bool:
         """Verifică dacă tokenul există ȘI nu a depășit durata maximă estimată."""
-        if self._access_token is None:
+        if self._access_token is None or self._force_refresh:
             return False
         age = time.monotonic() - self._token_obtained_at
         # Folosim expires_in din răspunsul API, cu fallback pe TOKEN_MAX_AGE
@@ -148,6 +181,8 @@ class EonApiClient:
             "id_token": self._id_token,
             "uuid": self._uuid,
             "obtained_at_wallclock": time.time() - (time.monotonic() - self._token_obtained_at),
+            "auth_flow": self._flow,
+            "requires_mfa": self._requires_mfa,
         }
 
     def inject_token(self, token_data: dict) -> None:
@@ -166,6 +201,9 @@ class EonApiClient:
         self._refresh_token = token_data.get("refresh_token")
         self._id_token = token_data.get("id_token")
         self._uuid = token_data.get("uuid")
+        self._flow = "web" if token_data.get("auth_flow") == "web" else "mobile"
+        self._requires_mfa = bool(token_data.get("requires_mfa"))
+        self._force_refresh = False
 
         # Calculăm vârsta reală a token-ului
         wallclock_obtained = token_data.get("obtained_at_wallclock")
@@ -182,9 +220,10 @@ class EonApiClient:
             )
         else:
             # Fără wallclock (format vechi) — forțăm refresh imediat
-            # Setăm token_obtained_at la 0 → is_token_likely_valid() returnează False
-            # → _ensure_token_valid() va încerca refresh_token (fără MFA!)
-            self._token_obtained_at = 0.0
+            # (înainte: token_obtained_at=0, care după o repornire recentă a
+            # sistemului — monotonic mic — făcea token-ul să pară valid)
+            self._token_obtained_at = time.monotonic()
+            self._force_refresh = True
             _LOGGER.debug(
                 "Token injectat fără wallclock (format vechi) — se va face refresh la prima cerere.",
             )
@@ -206,7 +245,11 @@ class EonApiClient:
     # ──────────────────────────────────────────
 
     async def async_login(self) -> bool:
-        """Obține un token nou de autentificare prin mobile-login.
+        """Obține un token nou de autentificare.
+
+        Fluxul mobil (mobile-login, cu header-ul x-client-source cerut din 09.2026);
+        dacă E·ON îl respinge din nou pentru header-e (6075), se încearcă fluxul
+        web Myline (userauth/login).
 
         Returnează True dacă tokenul a fost obținut cu succes.
         Returnează False dacă autentificarea a eșuat SAU dacă MFA e necesar.
@@ -215,77 +258,101 @@ class EonApiClient:
         - Stochează datele MFA în self._mfa_data
         - Returnează False (nu avem token încă)
         - Config flow verifică self.mfa_required și afișează formularul MFA
-        - Coordinator (runtime) va ridica UpdateFailed — MFA nu poate fi gestionat automat
+        - Coordinator (runtime) cere reautentificarea din UI
         """
         self._mfa_data = None  # Reset MFA state la fiecare încercare de login
+        self._auth_rejected = False
 
-        verify = generate_verify_hmac(self._username, AUTH_VERIFY_SECRET)
-        payload = {
-            "username": self._username,
-            "password": self._password,
-            "verify": verify,
-        }
+        for flow in ("mobile", "web"):
+            if flow == "mobile":
+                url, headers = URL_LOGIN, HEADERS
+                payload = {
+                    "username": self._username,
+                    "password": self._password,
+                    "verify": generate_verify_hmac(self._username, AUTH_VERIFY_SECRET),
+                }
+            else:
+                url, headers = URL_LOGIN_WEB, HEADERS_WEB
+                payload = {
+                    "username": self._username,
+                    "password": self._password,
+                    "rememberMe": True,
+                }
 
-        _LOGGER.debug("[LOGIN] Trimitere cerere: URL=%s, user=%s", URL_LOGIN, self._username)
+            _LOGGER.debug("[LOGIN] Trimitere cerere (%s): URL=%s, user=%s", flow, url, self._username)
 
-        try:
-            async with self._session.post(
-                URL_LOGIN, json=payload, headers=HEADERS, timeout=self._timeout
-            ) as resp:
-                response_text = await resp.text()
-                _LOGGER.debug("[LOGIN] Răspuns: Status=%s", resp.status)
-
-                if resp.status == 200:
-                    data = json.loads(response_text)
-                    if _LOGGER.isEnabledFor(logging.DEBUG):
-                        _LOGGER.debug(
-                            "[LOGIN] Date primite: type=%s, keys=%s",
-                            type(data).__name__,
-                            list(data.keys()) if isinstance(data, dict) else "N/A",
-                        )
-                    self._apply_token_data(data)
-                    _LOGGER.debug("[LOGIN] Token obținut cu succes (expires_in=%s).", self._expires_in)
-                    return True
-
-                # ── MFA necesar: HTTP 400 cu code "6054" ──
-                if resp.status == 400:
-                    try:
-                        data = json.loads(response_text)
-                    except (json.JSONDecodeError, ValueError):
-                        data = {}
-
-                    if str(data.get("code")) == MFA_REQUIRED_CODE:
-                        self._mfa_data = {
-                            "uuid": data.get("description"),  # UUID sesiune MFA
-                            "type": data.get("secondFactorType", "EMAIL"),
-                            "alternative_type": data.get("secondFactorAlternativeType", "SMS"),
-                            "recipient": data.get("secondFactorRecipient", ""),
-                            "validity": data.get("secondFactorValidity", 60),
-                        }
-                        _LOGGER.warning(
-                            "[LOGIN] MFA necesar (2FA activ). Tip=%s, Destinatar=%s, Valabilitate=%ss.",
-                            self._mfa_data["type"],
-                            self._mfa_data["recipient"],
-                            self._mfa_data["validity"],
-                        )
-                        return False  # Nu avem token, dar MFA e disponibil
-
-                _LOGGER.error(
-                    "[LOGIN] Eroare autentificare. Cod HTTP=%s, Răspuns=%s",
-                    resp.status,
-                    response_text,
-                )
+            try:
+                async with self._session.post(
+                    url, json=payload, headers=headers, timeout=self._timeout
+                ) as resp:
+                    response_text = await resp.text()
+                    status = resp.status
+            except asyncio.TimeoutError:
+                _LOGGER.error("[LOGIN] Depășire de timp.")
+                self._invalidate_tokens()
+                return False
+            except Exception as e:
+                _LOGGER.error("[LOGIN] Eroare: %s", e)
                 self._invalidate_tokens()
                 return False
 
-        except asyncio.TimeoutError:
-            _LOGGER.error("[LOGIN] Depășire de timp.")
+            _LOGGER.debug("[LOGIN] Răspuns (%s): Status=%s", flow, status)
+            try:
+                data = json.loads(response_text) if response_text else {}
+            except (json.JSONDecodeError, ValueError):
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+
+            if status == 200 and _extract_access_token(data):
+                self._flow = flow
+                self._apply_token_data(data)
+                _LOGGER.debug(
+                    "[LOGIN] Token obținut cu succes (flux=%s, expires_in=%s).", flow, self._expires_in
+                )
+                return True
+
+            code = str(data.get("code") or "")
+
+            # ── MFA necesar: HTTP 400 cu code "6054" ──
+            if status == 400 and code == MFA_REQUIRED_CODE:
+                self._flow = flow
+                self._requires_mfa = True
+                self._mfa_data = {
+                    "uuid": data.get("description"),  # UUID sesiune MFA
+                    "type": data.get("secondFactorType") or "EMAIL",
+                    "alternative_type": data.get("secondFactorAlternativeType") or "",
+                    "recipient": data.get("secondFactorRecipient") or "",
+                    "validity": data.get("secondFactorValidity", 60),
+                }
+                _LOGGER.warning(
+                    "[LOGIN] MFA necesar (2FA activ). Tip=%s, Destinatar=%s, Valabilitate=%ss.",
+                    self._mfa_data["type"],
+                    self._mfa_data["recipient"],
+                    self._mfa_data["validity"],
+                )
+                return False  # Nu avem token, dar MFA e disponibil
+
+            if status == 400 and code == INVALID_HEADER_CODE and flow == "mobile":
+                _LOGGER.warning(
+                    "[LOGIN] E·ON a respins header-ele fluxului mobil (6075) — "
+                    "se încearcă fluxul web Myline."
+                )
+                continue
+
+            if status == 400 and code == BAD_CREDENTIALS_CODE:
+                self._auth_rejected = True
+
+            _LOGGER.error(
+                "[LOGIN] Eroare autentificare. Cod HTTP=%s, Răspuns=%s",
+                status,
+                response_text[:500],
+            )
             self._invalidate_tokens()
             return False
-        except Exception as e:
-            _LOGGER.error("[LOGIN] Eroare: %s", e)
-            self._invalidate_tokens()
-            return False
+
+        self._invalidate_tokens()
+        return False
 
     async def async_mfa_complete(self, code: str) -> bool:
         """Finalizează autentificarea MFA cu codul OTP primit.
@@ -297,27 +364,32 @@ class EonApiClient:
             _LOGGER.error("[MFA] Nu există sesiune MFA activă (uuid lipsă).")
             return False
 
-        payload = {
-            "uuid": self._mfa_data["uuid"],
-            "code": code,
-            "interval": None,
-            "type": None,
-        }
+        if self._flow == "web":
+            url = URL_MFA_LOGIN_WEB
+            payload = {"uuid": self._mfa_data["uuid"], "code": code}
+        else:
+            url = URL_MFA_LOGIN
+            payload = {
+                "uuid": self._mfa_data["uuid"],
+                "code": code,
+                "interval": None,
+                "type": None,
+            }
 
-        _LOGGER.debug("[MFA] Completare login 2FA: URL=%s", URL_MFA_LOGIN)
+        _LOGGER.debug("[MFA] Completare login 2FA: URL=%s", url)
 
         try:
             async with self._session.post(
-                URL_MFA_LOGIN, json=payload, headers=HEADERS, timeout=self._timeout
+                url, json=payload, headers=self._headers, timeout=self._timeout
             ) as resp:
                 response_text = await resp.text()
                 _LOGGER.debug("[MFA] Răspuns: Status=%s", resp.status)
 
                 if resp.status == 200:
                     data = json.loads(response_text)
-                    access_token = data.get("access_token")
-                    if access_token:
+                    if isinstance(data, dict) and _extract_access_token(data):
                         self._apply_token_data(data)
+                        self._requires_mfa = True
                         self._mfa_data = None  # MFA completat cu succes
                         _LOGGER.debug("[MFA] Login 2FA reușit (expires_in=%s).", self._expires_in)
                         return True
@@ -363,7 +435,7 @@ class EonApiClient:
 
         try:
             async with self._session.post(
-                URL_MFA_RESEND, json=payload, headers=HEADERS, timeout=self._timeout
+                URL_MFA_RESEND, json=payload, headers=self._headers, timeout=self._timeout
             ) as resp:
                 response_text = await resp.text()
                 _LOGGER.debug("[MFA-RESEND] Răspuns: Status=%s, Body=%s", resp.status, response_text)
@@ -398,65 +470,86 @@ class EonApiClient:
             return False
 
     async def async_refresh_token(self) -> bool:
-        """Reîmprospătează tokenul de acces folosind refresh_token (fără lock — se apelează din _ensure_token_valid)."""
-        if not self._refresh_token:
-            _LOGGER.debug("[REFRESH] Nu există refresh_token. Se va face login complet.")
+        """Reîmprospătează tokenul de acces (fără lock — se apelează din _ensure_token_valid).
+
+        1. Fluxul mobil: mobile-refresh-token cu refresh_token.
+        2. Fluxul web Myline: refresh-token cu token-ul de acces curent (fără
+           Authorization) — varianta folosită de eon.ro după schimbările din 09.2026.
+        """
+        attempts: list[tuple[str, dict]] = []
+        if self._flow == "mobile" and self._refresh_token:
+            attempts.append((URL_REFRESH_TOKEN, {"refreshToken": self._refresh_token}))
+        if self._access_token:
+            attempts.append((URL_REFRESH_TOKEN_WEB, {"token": self._access_token}))
+        if not attempts:
+            _LOGGER.debug("[REFRESH] Nu există token pentru reîmprospătare.")
             return False
 
-        payload = {"refreshToken": self._refresh_token}
-
-        _LOGGER.debug("[REFRESH] Trimitere cerere: URL=%s", URL_REFRESH_TOKEN)
-
-        try:
-            async with self._session.post(
-                URL_REFRESH_TOKEN, json=payload, headers=HEADERS, timeout=self._timeout
-            ) as resp:
-                _LOGGER.debug("[REFRESH] Răspuns: Status=%s", resp.status)
-
-                if resp.status == 200:
-                    data = await resp.json()
-                    if _LOGGER.isEnabledFor(logging.DEBUG):
-                        _LOGGER.debug(
-                            "[REFRESH] Date primite: type=%s, keys=%s",
-                            type(data).__name__,
-                            list(data.keys()) if isinstance(data, dict) else "N/A",
-                        )
-                    self._apply_token_data(data)
-                    _LOGGER.debug("[REFRESH] Token reîmprospătat cu succes (expires_in=%s).", self._expires_in)
-                    return True
-
-                _LOGGER.warning(
-                    "[REFRESH] Eroare la reîmprospătare. Cod HTTP=%s, Răspuns=%s",
-                    resp.status,
-                    response_text,
-                )
+        for url, payload in attempts:
+            _LOGGER.debug("[REFRESH] Trimitere cerere: URL=%s", url)
+            try:
+                async with self._session.post(
+                    url, json=payload, headers=self._headers, timeout=self._timeout
+                ) as resp:
+                    # Înainte response_text nu era definit → NameError la orice refresh eșuat
+                    response_text = await resp.text()
+                    status = resp.status
+            except asyncio.TimeoutError:
+                _LOGGER.error("[REFRESH] Depășire de timp.")
+                return False
+            except Exception as e:
+                _LOGGER.error("[REFRESH] Eroare: %s", e)
                 return False
 
-        except asyncio.TimeoutError:
-            _LOGGER.error("[REFRESH] Depășire de timp.")
-            return False
-        except Exception as e:
-            _LOGGER.error("[REFRESH] Eroare: %s", e)
-            return False
+            _LOGGER.debug("[REFRESH] Răspuns: Status=%s", status)
+            if status == 200:
+                try:
+                    data = json.loads(response_text) if response_text else {}
+                except (json.JSONDecodeError, ValueError):
+                    data = {}
+                if isinstance(data, dict) and _extract_access_token(data):
+                    self._apply_token_data(data)
+                    _LOGGER.debug(
+                        "[REFRESH] Token reîmprospătat cu succes (expires_in=%s).", self._expires_in
+                    )
+                    return True
+
+            _LOGGER.warning(
+                "[REFRESH] Eroare la reîmprospătare. Cod HTTP=%s, Răspuns=%s",
+                status,
+                response_text[:500],
+            )
+        return False
 
     def _apply_token_data(self, data: dict) -> None:
-        """Aplică datele de token din răspunsul API (login sau refresh)."""
-        self._access_token = data.get("access_token")
-        self._token_type = data.get("token_type", "Bearer")
-        self._expires_in = data.get("expires_in", 3600)
-        self._refresh_token = data.get("refresh_token")
-        self._id_token = data.get("idToken")  # camelCase conform API real
-        self._uuid = data.get("uuid")
+        """Aplică datele de token din răspunsul API (login, 2FA sau refresh).
+
+        Fluxul web poate întoarce câmpurile în camelCase și poate să nu repete
+        refresh_token-ul — în acest caz îl păstrăm pe cel existent.
+        """
+        self._access_token = _extract_access_token(data)
+        self._token_type = data.get("token_type") or data.get("tokenType") or "Bearer"
+        self._expires_in = data.get("expires_in") or data.get("expiresIn") or 3600
+        self._refresh_token = (
+            data.get("refresh_token") or data.get("refreshToken") or self._refresh_token
+        )
+        self._id_token = data.get("idToken") or data.get("id_token") or self._id_token  # camelCase conform API real
+        self._uuid = data.get("uuid") or self._uuid
         self._token_obtained_at = time.monotonic()
         self._token_generation += 1
+        self._force_refresh = False
+        self._auth_rejected = False
 
     def invalidate_token(self) -> None:
-        """Invalidează tokenul curent (pentru a forța re-autentificare)."""
-        self._access_token = None
-        self._token_obtained_at = 0.0
+        """Marchează tokenul ca expirat (forțează refresh la următoarea cerere).
+
+        Tokenul NU se șterge: refresh-ul web are nevoie de el.
+        """
+        self._force_refresh = True
 
     def _invalidate_tokens(self) -> None:
         """Invalidează toate tokenurile (acces + refresh)."""
+        self._force_refresh = False
         self._access_token = None
         self._refresh_token = None
         self._id_token = None
@@ -504,11 +597,21 @@ class EonApiClient:
                 _LOGGER.debug("[AUTH] Login blocat de alt apel concurent — MFA necesar.")
                 return False
 
-            # Încearcă refresh dacă avem refresh_token
-            if self._refresh_token:
+            # Încearcă refresh (mobil cu refresh_token, apoi web cu token-ul de acces)
+            if self._refresh_token or self._access_token:
                 if await self.async_refresh_token():
                     return True
                 _LOGGER.debug("[AUTH] Refresh token eșuat. Se încearcă login complet.")
+
+            if self._requires_mfa:
+                # Contul cere cod 2FA: un login în fundal doar ar trimite un email
+                # inutil (codul nu poate fi introdus aici) → reautentificare din UI.
+                self._mfa_blocked = True
+                _LOGGER.warning(
+                    "[AUTH] Sesiunea E·ON a expirat și contul cere cod 2FA — "
+                    "este necesară reautentificarea din Home Assistant."
+                )
+                return False
 
             # Fallback la login complet
             self._invalidate_tokens()
@@ -891,7 +994,7 @@ class EonApiClient:
             return None
 
         gen_before = self._token_generation
-        headers = {**HEADERS, "Authorization": f"{self._token_type} {self._access_token}"}
+        headers = {**self._headers, "Authorization": f"{self._token_type} {self._access_token}"}
 
         _LOGGER.debug("[%s] Trimitere cerere: URL=%s, Payload=%s", label, URL_METER_SUBMIT, json.dumps(payload))
 
@@ -929,7 +1032,7 @@ class EonApiClient:
                             _LOGGER.error("[%s] Reautentificare eșuată.", label)
                             return None
 
-                    headers_retry = {**HEADERS, "Authorization": f"{self._token_type} {self._access_token}"}
+                    headers_retry = {**self._headers, "Authorization": f"{self._token_type} {self._access_token}"}
                     async with self._session.post(
                         URL_METER_SUBMIT,
                         json=payload,
@@ -1043,7 +1146,7 @@ class EonApiClient:
 
     async def _do_request(self, method: str, url: str, label: str = "request", json_payload=None):
         """Efectuează o cerere HTTP cu tokenul curent. Returnează (data, status)."""
-        headers = {**HEADERS}
+        headers = {**self._headers}
         if self._access_token:
             headers["Authorization"] = f"{self._token_type} {self._access_token}"
 
@@ -1108,7 +1211,7 @@ class EonApiClient:
             url = f"{base_url}?{'&'.join(query_parts)}"
 
             gen_before = self._token_generation
-            headers = {**HEADERS, "Authorization": f"{self._token_type} {self._access_token}"}
+            headers = {**self._headers, "Authorization": f"{self._token_type} {self._access_token}"}
 
             _LOGGER.debug("[%s] Pagină %s: %s", label, page, url)
 

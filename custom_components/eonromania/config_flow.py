@@ -9,12 +9,13 @@ Suportă MFA (Two-Factor Authentication) — dacă e activ, se cere codul OTP.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigFlowResult
+from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState, ConfigFlowResult
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import selector
@@ -25,6 +26,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, DOMAIN_TOKEN_STORE, CONF_LICENSE_KEY, LICENSE_DATA_KEY, LICENSE_PURCHASE_URL
+from . import _signature
 from .api import EonApiClient
 from .helpers import (
     build_contract_metadata,
@@ -66,6 +68,45 @@ def _store_token(hass, username: str, api: EonApiClient) -> None:
         username,
         token_data["access_token"][:8] if token_data.get("access_token") else "None",
     )
+
+
+def _update_and_reload(
+    hass, entry: config_entries.ConfigEntry, data: dict[str, Any], **kwargs: Any
+) -> None:
+    """Salvează intrarea și o reîncarcă o singură dată.
+
+    Listener-ul de update reîncarcă singur intrarea când s-a schimbat
+    configurația (fără token). Altfel — ex: doar un token nou după 2FA, sau
+    intrarea nu rulează (setup eșuat) — reîncărcăm aici, ca noul token să fie
+    folosit. (Înainte: update + reload explicit = două reload-uri.)
+    Decizia se ia ÎNAINTE de update: listener-ul pornește imediat.
+    """
+    runtime = getattr(entry, "runtime_data", None)
+    listener_reloads = (
+        entry.state is ConfigEntryState.LOADED
+        and runtime is not None
+        and getattr(runtime, "config_signature", None) != _signature(data, entry.options)
+    )
+    hass.config_entries.async_update_entry(entry, data=data, **kwargs)
+    if not listener_reloads:
+        hass.config_entries.async_schedule_reload(entry.entry_id)
+
+
+_ETICHETE_TIP_LICENTA = {
+    # Tipurile emise de WebAPI (LICENSE_DURATION)
+    "perpetual": ("perpetuă", "perpetual"),
+    "annual": ("anuală", "annual"),
+    "semi_annual": ("semestrială", "semi-annual"),
+    "monthly": ("lunară", "monthly"),
+}
+
+
+def _eticheta_tip_licenta(tip: str | None, is_ro: bool) -> str:
+    """Eticheta afișată pentru tipul de licență primit de la server."""
+    if not tip:
+        return "necunoscut" if is_ro else "unknown"
+    ro, en = _ETICHETE_TIP_LICENTA.get(tip, (tip, tip))
+    return ro if is_ro else en
 
 
 # ------------------------------------------------------------------
@@ -256,6 +297,8 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not code:
                 errors["base"] = "mfa_invalid_code"
             elif self._api and await self._api.async_mfa_complete(code):
+                if self.source == SOURCE_REAUTH:
+                    return self._async_finish_reauth()
                 # MFA completat — salvăm token-ul și obținem contractele
                 _store_token(self.hass, self._username, self._api)
                 contracts = await _fetch_contracts_after_login(self._api)
@@ -342,6 +385,71 @@ class EonRomaniaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    # ─────────────────────────────────────────
+    # Reautentificare (sesiune expirată / cod 2FA / parolă schimbată)
+    # ─────────────────────────────────────────
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Pornit de Home Assistant când integrarea nu se mai poate autentifica."""
+        self._username = entry_data["username"]
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Parola (precompletată) → login → cod 2FA dacă e cerut."""
+        errors: dict[str, str] = {}
+        entry = self._get_reauth_entry()
+
+        if user_input is not None:
+            self._password = user_input["password"]
+            session = async_get_clientsession(self.hass)
+            self._api = EonApiClient(session, self._username, self._password)
+
+            if await self._api.async_login():
+                return self._async_finish_reauth()
+            if self._api.mfa_required:
+                mfa_info = self._api.mfa_data or {}
+                self._mfa_type = mfa_info.get("type", "EMAIL")
+                self._mfa_alt_type = mfa_info.get("alternative_type", "")
+                if self._mfa_type == "EMAIL":
+                    self._mfa_recipient_display = mask_email(self._username)
+                else:
+                    self._mfa_recipient_display = mfa_info.get("recipient", "—")
+                if self._mfa_alt_type and self._mfa_alt_type != self._mfa_type:
+                    return await self.async_step_mfa_method()
+                return await self.async_step_mfa()
+            errors["base"] = "auth_failed"
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    "password", default=entry.data.get("password", "")
+                ): str,
+            }
+        )
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"username": mask_email(self._username)},
+        )
+
+    def _async_finish_reauth(self) -> ConfigFlowResult:
+        """Salvează parola + token-ul nou și reîncarcă intrarea."""
+        entry = self._get_reauth_entry()
+        _update_and_reload(
+            self.hass,
+            entry,
+            {
+                **entry.data,
+                "password": self._password,
+                "token_data": self._api.export_token_data() if self._api else None,
+            },
+        )
+        return self.async_abort(reason="reauth_successful")
+
     def _create_entry_no_contracts(self) -> ConfigFlowResult:
         """Creează entry fără contracte (doar senzor date personale).
 
@@ -387,6 +495,21 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
         self._mfa_alt_type: str = ""
         self._mfa_recipient_display: str = ""
 
+    def _save_entry(self, data: dict[str, Any]) -> None:
+        """Salvează noua configurație (titlu + unique_id după cont) și reîncarcă o dată."""
+        username = data.get("username", "")
+        title = (
+            f"E·ON {username}" if data.get("account_only")
+            else f"E·ON România ({username})"
+        )
+        _update_and_reload(
+            self.hass,
+            self.config_entry,
+            data,
+            title=title,
+            unique_id=username.lower(),
+        )
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -424,7 +547,7 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
         if server_status == "licensed":
             from datetime import datetime
 
-            tip = mgr.license_type or "necunoscut"
+            tip = _eticheta_tip_licenta(mgr.license_type, True)
             status_lines = [f"✅ Licență activă ({tip})"]
 
             if mgr.license_key_masked:
@@ -443,7 +566,7 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
                     mgr.license_expires_at
                 ).strftime("%d.%m.%Y %H:%M")
                 status_lines.append(f"📅 Expiră la: {exp_date}")
-            elif tip == "perpetual":
+            elif mgr.license_type == "perpetual":
                 status_lines.append("Valabilitate: nelimitată (perpetuă)")
 
             description_placeholders["license_status"] = "\n".join(
@@ -526,15 +649,7 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
                         persistent_notification,
                     )
 
-                    _LICENSE_TYPE_RO = {
-                        "monthly": "lunară",
-                        "yearly": "anuală",
-                        "perpetual": "perpetuă",
-                        "trial": "evaluare",
-                    }
-                    tip_ro = _LICENSE_TYPE_RO.get(
-                        mgr.license_type, mgr.license_type or "necunoscut"
-                    )
+                    tip_ro = _eticheta_tip_licenta(mgr.license_type, True)
 
                     persistent_notification.async_create(
                         self.hass,
@@ -547,16 +662,17 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
                         data=self.config_entry.options
                     )
 
-                # Mapare erori API
+                # Mapare erori API (codurile WebAPI /activate + erorile locale)
                 api_error = result.get("error", "unknown_error")
                 error_map = {
                     "invalid_key": "license_key_invalid",
                     "already_used": "license_already_used",
                     "expired_key": "license_key_expired",
                     "fingerprint_mismatch": "license_fingerprint_mismatch",
-                    "invalid_signature": "license_server_error",
                     "network_error": "license_network_error",
-                    "server_error": "license_server_error",
+                    "http_502": "license_network_error",
+                    "http_503": "license_network_error",  # server temporar ocupat
+                    "http_504": "license_network_error",
                 }
                 errors["base"] = error_map.get(api_error, "license_server_error")
 
@@ -594,7 +710,15 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
             session = async_get_clientsession(self.hass)
             self._api = EonApiClient(session, username, password)
 
-            if await self._api.async_login():
+            conflict = any(
+                e.entry_id != self.config_entry.entry_id
+                and e.unique_id == username.lower()
+                for e in self.hass.config_entries.async_entries(DOMAIN)
+            )
+            if conflict:
+                # Contul e deja configurat într-o altă intrare
+                errors["base"] = "already_configured"
+            elif await self._api.async_login():
                 _store_token(self.hass, username, self._api)
                 contracts = await _fetch_contracts_after_login(self._api)
                 if contracts:
@@ -618,10 +742,8 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
                     "account_only": True,
                     "token_data": self._api.export_token_data() if self._api else None,
                 })
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry, data=new_data
-                )
-                return self.async_create_entry(title="", data={})
+                self._save_entry(new_data)
+                return self.async_create_entry(data=dict(self.config_entry.options))
             elif self._api.mfa_required:
                 # MFA necesar — salvăm credențialele + info MFA ACUM
                 self._username = username
@@ -762,10 +884,8 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
                     "account_only": True,
                     "token_data": self._api.export_token_data() if self._api else None,
                 })
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry, data=new_data
-                )
-                return self.async_create_entry(title="", data={})
+                self._save_entry(new_data)
+                return self.async_create_entry(data=dict(self.config_entry.options))
             else:
                 errors["base"] = "mfa_failed"
 
@@ -805,23 +925,19 @@ class EonRomaniaOptionsFlow(config_entries.OptionsFlow):
                     select_all, selected, self._contracts_raw
                 )
 
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    data={
+                self._save_entry(
+                    {
                         "username": self._username,
                         "password": self._password,
                         "update_interval": self._update_interval,
                         "select_all": select_all,
                         "selected_contracts": final_selection,
                         "contract_metadata": build_contract_metadata(self._contracts_raw),
-                    },
+                        "token_data": self._api.export_token_data() if self._api else None,
+                    }
                 )
 
-                await self.hass.config_entries.async_reload(
-                    self.config_entry.entry_id
-                )
-
-                return self.async_create_entry(data={})
+                return self.async_create_entry(data=dict(self.config_entry.options))
 
         current = self.config_entry.data
 

@@ -14,6 +14,7 @@ import json
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import EonApiClient
@@ -154,7 +155,7 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                         cod,
                     )
                     self._create_reauth_notification()
-                    raise UpdateFailed(
+                    raise ConfigEntryAuthFailed(
                         "Autentificarea necesită MFA. "
                         "Reconfigurați integrarea din Setări → Dispozitive și servicii → E·ON România."
                     )
@@ -167,6 +168,10 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                 if not ok:
                     if self.api_client.mfa_blocked:
                         self._create_reauth_notification()
+                        raise ConfigEntryAuthFailed("Autentificarea E·ON necesită cod 2FA.")
+                    if self.api_client.auth_rejected:
+                        # Parolă schimbată / greșită: reîncercările nu ajută
+                        raise ConfigEntryAuthFailed("E·ON a respins email-ul sau parola.")
                     _LOGGER.warning(
                         "Autentificare eșuată la API-ul E·ON (contract=%s).", cod
                     )
@@ -387,7 +392,7 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             )
             raise UpdateFailed("Depășire de timp la actualizarea datelor E·ON.") from err
 
-        except UpdateFailed:
+        except (UpdateFailed, ConfigEntryAuthFailed):
             raise
 
         except Exception as err:
@@ -471,7 +476,7 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                 if self.api_client.mfa_blocked:
                     _LOGGER.warning("Login blocat — MFA necesar (account_only).")
                     self._create_reauth_notification()
-                    raise UpdateFailed(
+                    raise ConfigEntryAuthFailed(
                         "Autentificarea necesită MFA. "
                         "Reconfigurați integrarea din Setări → Dispozitive și servicii → E·ON România."
                     )
@@ -480,11 +485,15 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                 if not ok:
                     if self.api_client.mfa_blocked:
                         self._create_reauth_notification()
+                        raise ConfigEntryAuthFailed("Autentificarea E·ON necesită cod 2FA.")
+                    if self.api_client.auth_rejected:
+                        # Parolă schimbată / greșită: reîncercările nu ajută
+                        raise ConfigEntryAuthFailed("E·ON a respins email-ul sau parola.")
                     raise UpdateFailed("Nu s-a putut autentifica la API-ul E·ON.")
 
             user_details = await self.api_client.async_fetch_user_details()
 
-        except UpdateFailed:
+        except (UpdateFailed, ConfigEntryAuthFailed):
             raise
         except Exception as err:
             _LOGGER.exception("Eroare la actualizare account_only: %s", err)
@@ -549,9 +558,9 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             message=(
                 f"Sesiunea E·ON pentru contractul **{self.cod_incasare}** a expirat "
                 f"și este necesară re-autentificarea cu cod MFA.\n\n"
-                f"Mergeți la **Setări → Dispozitive și servicii → E·ON România → "
-                f"Reconfigurare** pentru a vă re-autentifica.\n\n"
-                f"Până la reconfigurare, integrarea NU va mai încerca login "
+                f"Mergeți la **Setări → Dispozitive și servicii → E·ON România** și "
+                f"apăsați **Reautentificare** (sau Configurare → Setări cont).\n\n"
+                f"Până atunci, integrarea NU va mai încerca login "
                 f"(pentru a evita trimiterea repetată de email-uri MFA)."
             ),
             title="E·ON România — Autentificare necesară",
