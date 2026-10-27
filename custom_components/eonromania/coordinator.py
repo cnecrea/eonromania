@@ -219,6 +219,12 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                     )
                     heavy_labels.append("payments")
 
+                # Arhivă facturi — toate facturile emise (un singur apel, fără filtru de status)
+                heavy_tasks.append(
+                    self.api_client.async_fetch_invoices_archive(cod)
+                )
+                heavy_labels.append("invoices_archive")
+
                 # Prosum — doar dacă are capabilitate sau prima dată
                 if self._cap("has_prosum"):
                     heavy_tasks.append(
@@ -244,6 +250,10 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                     heavy_map = {}
 
                 payments = heavy_map.get("payments")
+                invoices_archive = heavy_map.get("invoices_archive")
+                if invoices_archive is None:
+                    # Apel eșuat: păstrăm arhiva din refresh-ul anterior
+                    invoices_archive = prev.get("invoices_archive")
                 invoices_prosum = heavy_map.get("invoices_prosum")
                 invoice_balance_prosum = heavy_map.get("invoice_balance_prosum")
                 rescheduling_plans = heavy_map.get("rescheduling_plans")
@@ -262,6 +272,7 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             else:
                 # Light refresh: reutilizăm datele grele din refresh-ul anterior
                 payments = prev.get("payments")
+                invoices_archive = prev.get("invoices_archive")
                 invoices_prosum = prev.get("invoices_prosum")
                 invoice_balance_prosum = prev.get("invoice_balance_prosum")
                 rescheduling_plans = prev.get("rescheduling_plans")
@@ -480,6 +491,7 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             "contract_details": contract_details,
             # Facturi
             "invoices_unpaid": invoices_unpaid,
+            "invoices_archive": invoices_archive,
             "invoices_prosum": invoices_prosum,
             "invoice_balance": invoice_balance,
             "invoice_balance_prosum": invoice_balance_prosum,

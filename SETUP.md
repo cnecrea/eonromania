@@ -184,6 +184,7 @@ Toate setările pot fi modificate din UI, fără a șterge și readăuga integra
 | Factură restantă | `sensor.eonromania_{cod}_factura_restanta` |
 | Factură prosumator | `sensor.eonromania_{cod}_factura_prosumator` |
 | Arhivă plăți (an) | `sensor.eonromania_{cod}_arhiva_plati_{an}` |
+| Arhivă facturi (ultimele 12 luni) | `sensor.eonromania_{cod}_arhiva_facturi` |
 | Trimite index gaz | `button.eonromania_{cod}_trimite_index_gaz` |
 | Trimite index energie electrică | `button.eonromania_{cod}_trimite_index_energie_electrica` |
 

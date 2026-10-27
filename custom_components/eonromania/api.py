@@ -793,6 +793,21 @@ class EonApiClient:
         )
         return result
 
+    async def async_fetch_invoices_archive(self, account_contract: str):
+        """Obține facturile emise (ultimele 12 luni), plătite și neplătite, fără filtru de status."""
+        result = await self._request_with_token(
+            method="GET",
+            url=f"{URL_INVOICES_UNPAID}?accountContract={account_contract}",
+            label=f"invoices_archive ({account_contract})",
+        )
+        _LOGGER.debug(
+            "[invoices_archive %s] Date primite: type=%s, len=%s",
+            account_contract,
+            type(result).__name__,
+            len(result) if isinstance(result, (list, dict)) else "N/A",
+        )
+        return result
+
     async def async_fetch_invoices_prosum(self, account_contract: str, max_pages: int | None = None):
         """Obține facturile de prosumator (paginate)."""
         result = await self._paginated_request(
