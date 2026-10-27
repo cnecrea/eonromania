@@ -277,6 +277,8 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             subcontracts_details = None
             subcontracts_conventions = None
             subcontracts_meter_index = None
+            subcontracts_graphic_consumption = None
+            subcontracts_meter_history = None
 
             if not self.is_collective:
                 # Contract individual: meter_index + consumption_convention la fiecare refresh
@@ -320,6 +322,11 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                     "Contract colectiv/DUO (contract=%s). Se interoghează subcontractele.",
                     cod,
                 )
+                # Arhivele per subcontract pornesc din prev: dacă lista de subcontracte
+                # nu răspunde, valorile anterioare se păstrează.
+                subcontracts_graphic_consumption = prev.get("subcontracts_graphic_consumption")
+                subcontracts_meter_history = prev.get("subcontracts_meter_history")
+
                 raw_subs = await self.api_client.async_fetch_contracts_list(
                     collective_contract=cod
                 )
@@ -376,6 +383,37 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                             len(subcontracts_details) if subcontracts_details else 0,
                             len(subcontracts_conventions) if subcontracts_conventions else 0,
                             len(subcontracts_meter_index) if subcontracts_meter_index else 0,
+                        )
+
+                        # Arhive per subcontract (graphic_consumption + meter_history) doar la heavy.
+                        # Endpoint-urile nu răspund pe contractul colectiv, dar răspund pe subcontracte.
+                        if is_heavy:
+                            archive_results = await asyncio.gather(
+                                *[self.api_client.async_fetch_graphic_consumption(sc) for sc in sub_codes],
+                                *[self.api_client.async_fetch_meter_history(sc) for sc in sub_codes],
+                            )
+                            graphic_results = archive_results[:n]
+                            history_results = archive_results[n:]
+
+                            # Se suprascriu doar subcontractele al căror apel a reușit;
+                            # pentru cele eșuate rămâne valoarea anterioară.
+                            subcontracts_graphic_consumption = dict(subcontracts_graphic_consumption or {})
+                            for sc_code, gc_data in zip(sub_codes, graphic_results):
+                                if gc_data and isinstance(gc_data, dict):
+                                    subcontracts_graphic_consumption[sc_code] = gc_data
+                            subcontracts_graphic_consumption = subcontracts_graphic_consumption or None
+
+                            subcontracts_meter_history = dict(subcontracts_meter_history or {})
+                            for sc_code, mh_data in zip(sub_codes, history_results):
+                                if mh_data and isinstance(mh_data, dict):
+                                    subcontracts_meter_history[sc_code] = mh_data
+                            subcontracts_meter_history = subcontracts_meter_history or None
+
+                        _LOGGER.debug(
+                            "DUO arhive (contract=%s): graphic_consumption=%s, meter_history=%s.",
+                            cod,
+                            len(subcontracts_graphic_consumption) if subcontracts_graphic_consumption else 0,
+                            len(subcontracts_meter_history) if subcontracts_meter_history else 0,
                         )
 
                     if not subcontracts:
@@ -458,6 +496,8 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
             "subcontracts_details": subcontracts_details,
             "subcontracts_conventions": subcontracts_conventions,
             "subcontracts_meter_index": subcontracts_meter_index,
+            "subcontracts_graphic_consumption": subcontracts_graphic_consumption,
+            "subcontracts_meter_history": subcontracts_meter_history,
             # Metadate
             "um": um,
             "is_collective": self.is_collective,

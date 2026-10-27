@@ -18,7 +18,7 @@ Oferă senzori dedicați per cod de încasare pentru contract, index curent, sol
 - **Descoperire automată** a contractelor asociate contului E·ON Myline
 - **Selectare granulară** a contractelor pe care vrei să le monitorizezi (checkbox-uri cu adrese complete)
 - **Multi-contract** — un singur cont E·ON poate monitoriza mai multe coduri de încasare simultan
-- **Suport complet DUO** — contractele colective (gaz + electricitate sub un singur cod) sunt detectate automat, cu senzori separați per subcontract (index, citire permisă, convenție consum)
+- **Suport complet DUO** — contractele colective (gaz + electricitate sub un singur cod) sunt detectate automat, cu senzori separați per subcontract (index, citire permisă, convenție consum, arhivă consum, arhivă index)
 - **Senzori dedicați** per contract selectat — fiecare contract devine un device dedicat
 - **Sold și facturi** — existență sold (Da/Nu), facturi restante cu detalii în atribute, format românesc (1.234,56 lei)
 - **Istoric citiri** — indexuri lunare cu tip citire (autocitit / estimat / citit distribuitor)
@@ -147,6 +147,8 @@ Pe lângă senzorii de bază (Date contract, Sold factură, Factură restantă, 
 | `Citire permisă gaz` | Autocitire activă pe gaz? | Da / Nu |
 | `Citire permisă electricitate` | Autocitire activă pe electricitate? | Da / Nu |
 | `Convenție consum` | Convenție per utilitate (gaz + electricitate) | Da / Nu |
+| `{an} → Arhivă index gaz` / `energie electrică` | Indexuri lunare per an (subcontract) | Număr citiri |
+| `{an} → Arhivă consum gaz` / `energie electrică` | Consum lunar + mediu zilnic per an (subcontract) | Total consum |
 
 Senzorul `Date contract` pentru DUO afișează în atribute: detalii contract colectiv, subcontracte cu coduri și adrese, plus detalii complete per subcontract (prețuri, contor, OD, NLC, POD).
 
@@ -406,7 +408,7 @@ Nu necesită dependențe externe (nu instalează pachete pip/npm).
 
 4. **Planuri eșalonare** — senzorul apare doar dacă API-ul returnează date de eșalonare.
 
-5. **DUO — Arhivă consum și Arhivă index** — aceste senzori nu sunt disponibili pe contractul colectiv (endpoint-urile nu funcționează pe contractul părinte). Datele de index și convenție sunt disponibile per subcontract.
+5. **DUO — Arhivă consum și Arhivă index** — endpoint-urile nu funcționează pe contractul colectiv (părinte), dar funcționează pe subcontracte. Senzorii se creează per subcontract (gaz și electricitate). `Arhivă index` se actualizează la refresh-ul complet, iar `Arhivă consum` își calculează valorile la pornirea integrării. Unitatea de măsură (`m3` / `kwh`) se citește din fiecare subcontract.
 
 ---
 
