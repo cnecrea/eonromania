@@ -254,6 +254,19 @@ def _build_sensors_for_coordinator(
             max_year = max(payments_by_year.keys())
             sensors.append(ArhivaPlatiSensor(coordinator, config_entry, max_year))
 
+    # ── 5b. ArhivaFacturiSensor (doar ultimul an; la DUO un singur senzor pe contractul colectiv) ──
+    invoices_archive = coordinator.data.get("invoices_archive") if coordinator.data else None
+    if isinstance(invoices_archive, list):
+        invoice_years = [
+            parsed.year
+            for parsed in (
+                ArhivaFacturiSensor.parse_emission_date(inv) for inv in invoices_archive
+            )
+            if parsed
+        ]
+        if invoice_years:
+            sensors.append(ArhivaFacturiSensor(coordinator, config_entry, max(invoice_years)))
+
     # ── 6. ArhivaComparareConsumAnualGraficSensor (doar ultimul an) ──
     # (la contractele colective/DUO se creează per subcontract — endpoint-ul nu
     # funcționează pe contractul colectiv, dar funcționează pe subcontracte)
@@ -1556,6 +1569,81 @@ class ArhivaPlatiSensor(EonRomaniaEntity):
         all_payments = self.coordinator.data.get("payments", []) if self.coordinator.data else []
         return [p for p in all_payments if p.get("paymentDate", "").startswith(str(self.year))]
 
+
+# ──────────────────────────────────────────────
+# ArhivaFacturiSensor
+# ──────────────────────────────────────────────
+class ArhivaFacturiSensor(EonRomaniaEntity):
+    """Senzor pentru afișarea facturilor emise (grupate pe anul emiterii)."""
+
+    _attr_icon = "mdi:file-document-multiple"
+
+    def __init__(self, coordinator, config_entry, year):
+        super().__init__(coordinator, config_entry)
+        self.year = year
+        self._attr_name = f"{year} → Arhivă facturi"
+        self._attr_unique_id = f"{DOMAIN}_arhiva_facturi_{self._cod_incasare}_{year}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_facturi_{year}"
+
+    @staticmethod
+    def parse_emission_date(invoice):
+        """Returnează data emiterii (dd.mm.yyyy) ca datetime, sau None dacă lipsește/e invalidă."""
+        raw = invoice.get("emissionDate") if isinstance(invoice, dict) else None
+        if not raw:
+            return None
+        try:
+            return datetime.strptime(raw, "%d.%m.%Y")
+        except ValueError:
+            return None
+
+    @property
+    def native_value(self):
+        if not self._license_valid:
+            return "Licență necesară"
+        return len(self._invoices_for_year())
+
+    @property
+    def extra_state_attributes(self):
+        if not self._license_valid:
+            return {"licență": "necesară"}
+        attributes = {}
+        total_value = 0.0
+        for emission, invoice in self._invoices_for_year():
+            month_name = MONTHS_NUM_RO.get(emission.month, "necunoscut")
+            value = invoice.get("issuedValue") or 0
+            storno = bool(invoice.get("storno"))
+            unpaid = (invoice.get("balanceValue") or 0) > 0
+
+            label = f"Factură {month_name}"
+            invoice_type = invoice.get("type")
+            if invoice_type and invoice_type != "Consum":
+                label += f" ({invoice_type})"
+            label += f" (nr. {invoice.get('invoiceNumber', 'N/A')})"
+
+            text = f"{format_ron(value)} lei"
+            if storno:
+                text += " (stornată)"
+            else:
+                total_value += value
+                if unpaid:
+                    text += " (neachitată)"
+            attributes[label] = text
+        attributes["Facturi emise"] = len(self._invoices_for_year())
+        attributes["Total facturat"] = f"{format_ron(total_value)} lei"
+        attributes["attribution"] = ATTRIBUTION
+        return attributes
+
+    def _invoices_for_year(self) -> list:
+        """Facturile din anul senzorului, ca (data emiterii, factură), în ordine cronologică."""
+        all_invoices = self.coordinator.data.get("invoices_archive") if self.coordinator.data else None
+        if not isinstance(all_invoices, list):
+            return []
+        dated = []
+        for invoice in all_invoices:
+            emission = self.parse_emission_date(invoice)
+            if emission and emission.year == self.year:
+                dated.append((emission, invoice))
+        return sorted(dated, key=lambda item: item[0])
 
 
 # ──────────────────────────────────────────────
