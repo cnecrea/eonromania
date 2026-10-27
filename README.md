@@ -23,7 +23,7 @@ Oferă senzori dedicați per cod de încasare pentru contract, index curent, sol
 - **Sold și facturi** — existență sold (Da/Nu), facturi restante cu detalii în atribute, format românesc (1.234,56 lei)
 - **Istoric citiri** — indexuri lunare cu tip citire (autocitit / estimat / citit distribuitor)
 - **Arhivă plăți** — plățile efectuate pe an, cu total anual
-- **Arhivă facturi** — facturile emise pe an (plătite și neplătite), cu luna emiterii și total facturat
+- **Arhivă facturi** — facturile emise în ultimele 12 luni (plătite și neplătite), cu luna și anul emiterii și total facturat
 - **Arhivă consum** — consum lunar și mediu zilnic per an, cu separatorul zecimal românesc (virgulă)
 - **Adrese normalizate** — formatare corectă din datele API în format românesc
 - **Mapping județe** — coduri scurte (AB, BV, CJ) convertite automat în denumiri complete (Alba, Brașov, Cluj)
@@ -136,7 +136,7 @@ Integrarea creează un **device** per contract selectat. Sub fiecare device se c
 | `Licență` | Status licență | Licență necesară |
 | `{an} → Arhivă index gaz` / `energie electrică` | Indexuri lunare per an | Număr citiri |
 | `{an} → Arhivă plăți` | Plăți lunare per an | Număr plăți |
-| `{an} → Arhivă facturi` | Facturi emise per an (luna emiterii; neachitate/stornate marcate) | Număr facturi |
+| `Arhivă facturi` | Facturi emise în ultimele 12 luni (luna și anul emiterii; neachitate/stornate marcate) | Număr facturi |
 | `{an} → Arhivă consum gaz` / `energie electrică` | Consum lunar + mediu zilnic per an | Total consum |
 
 ### Contract colectiv / DUO (gaz + electricitate)

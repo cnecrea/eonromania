@@ -254,18 +254,10 @@ def _build_sensors_for_coordinator(
             max_year = max(payments_by_year.keys())
             sensors.append(ArhivaPlatiSensor(coordinator, config_entry, max_year))
 
-    # ── 5b. ArhivaFacturiSensor (doar ultimul an; la DUO un singur senzor pe contractul colectiv) ──
+    # ── 5b. ArhivaFacturiSensor (ultimele 12 luni; la DUO un singur senzor pe contractul colectiv) ──
     invoices_archive = coordinator.data.get("invoices_archive") if coordinator.data else None
     if isinstance(invoices_archive, list):
-        invoice_years = [
-            parsed.year
-            for parsed in (
-                ArhivaFacturiSensor.parse_emission_date(inv) for inv in invoices_archive
-            )
-            if parsed
-        ]
-        if invoice_years:
-            sensors.append(ArhivaFacturiSensor(coordinator, config_entry, max(invoice_years)))
+        sensors.append(ArhivaFacturiSensor(coordinator, config_entry))
 
     # ── 6. ArhivaComparareConsumAnualGraficSensor (doar ultimul an) ──
     # (la contractele colective/DUO se creează per subcontract — endpoint-ul nu
@@ -1574,16 +1566,15 @@ class ArhivaPlatiSensor(EonRomaniaEntity):
 # ArhivaFacturiSensor
 # ──────────────────────────────────────────────
 class ArhivaFacturiSensor(EonRomaniaEntity):
-    """Senzor pentru afișarea facturilor emise (grupate pe anul emiterii)."""
+    """Senzor pentru afișarea facturilor emise în ultimele 12 luni (fereastra întoarsă de API)."""
 
     _attr_icon = "mdi:file-document-multiple"
 
-    def __init__(self, coordinator, config_entry, year):
+    def __init__(self, coordinator, config_entry):
         super().__init__(coordinator, config_entry)
-        self.year = year
-        self._attr_name = f"{year} → Arhivă facturi"
-        self._attr_unique_id = f"{DOMAIN}_arhiva_facturi_{self._cod_incasare}_{year}"
-        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_facturi_{year}"
+        self._attr_name = "Arhivă facturi"
+        self._attr_unique_id = f"{DOMAIN}_arhiva_facturi_{self._cod_incasare}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_facturi"
 
     @staticmethod
     def parse_emission_date(invoice):
@@ -1600,7 +1591,7 @@ class ArhivaFacturiSensor(EonRomaniaEntity):
     def native_value(self):
         if not self._license_valid:
             return "Licență necesară"
-        return len(self._invoices_for_year())
+        return len(self._invoices_in_window())
 
     @property
     def extra_state_attributes(self):
@@ -1608,13 +1599,14 @@ class ArhivaFacturiSensor(EonRomaniaEntity):
             return {"licență": "necesară"}
         attributes = {}
         total_value = 0.0
-        for emission, invoice in self._invoices_for_year():
+        invoices = self._invoices_in_window()
+        for emission, invoice in invoices:
             month_name = MONTHS_NUM_RO.get(emission.month, "necunoscut")
-            value = invoice.get("issuedValue") or 0
+            value = float(invoice.get("issuedValue") or 0)
             storno = bool(invoice.get("storno"))
-            unpaid = (invoice.get("balanceValue") or 0) > 0
+            unpaid = float(invoice.get("balanceValue") or 0) > 0
 
-            label = f"Factură {month_name}"
+            label = f"Factură {month_name} {emission.year}"
             invoice_type = invoice.get("type")
             if invoice_type and invoice_type != "Consum":
                 label += f" ({invoice_type})"
@@ -1628,20 +1620,20 @@ class ArhivaFacturiSensor(EonRomaniaEntity):
                 if unpaid:
                     text += " (neachitată)"
             attributes[label] = text
-        attributes["Facturi emise"] = len(self._invoices_for_year())
+        attributes["Facturi emise"] = len(invoices)
         attributes["Total facturat"] = f"{format_ron(total_value)} lei"
         attributes["attribution"] = ATTRIBUTION
         return attributes
 
-    def _invoices_for_year(self) -> list:
-        """Facturile din anul senzorului, ca (data emiterii, factură), în ordine cronologică."""
+    def _invoices_in_window(self) -> list:
+        """Facturile din fereastra API (ultimele 12 luni), ca (data emiterii, factură), în ordine cronologică."""
         all_invoices = self.coordinator.data.get("invoices_archive") if self.coordinator.data else None
         if not isinstance(all_invoices, list):
             return []
         dated = []
         for invoice in all_invoices:
             emission = self.parse_emission_date(invoice)
-            if emission and emission.year == self.year:
+            if emission:
                 dated.append((emission, invoice))
         return sorted(dated, key=lambda item: item[0])
 
