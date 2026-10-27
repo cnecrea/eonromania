@@ -322,6 +322,11 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                     "Contract colectiv/DUO (contract=%s). Se interoghează subcontractele.",
                     cod,
                 )
+                # Arhivele per subcontract pornesc din prev: dacă lista de subcontracte
+                # nu răspunde, valorile anterioare se păstrează.
+                subcontracts_graphic_consumption = prev.get("subcontracts_graphic_consumption")
+                subcontracts_meter_history = prev.get("subcontracts_meter_history")
+
                 raw_subs = await self.api_client.async_fetch_contracts_list(
                     collective_contract=cod
                 )
@@ -390,20 +395,19 @@ class EonRomaniaCoordinator(DataUpdateCoordinator):
                             graphic_results = archive_results[:n]
                             history_results = archive_results[n:]
 
-                            subcontracts_graphic_consumption = {}
+                            # Se suprascriu doar subcontractele al căror apel a reușit;
+                            # pentru cele eșuate rămâne valoarea anterioară.
+                            subcontracts_graphic_consumption = dict(subcontracts_graphic_consumption or {})
                             for sc_code, gc_data in zip(sub_codes, graphic_results):
                                 if gc_data and isinstance(gc_data, dict):
                                     subcontracts_graphic_consumption[sc_code] = gc_data
                             subcontracts_graphic_consumption = subcontracts_graphic_consumption or None
 
-                            subcontracts_meter_history = {}
+                            subcontracts_meter_history = dict(subcontracts_meter_history or {})
                             for sc_code, mh_data in zip(sub_codes, history_results):
                                 if mh_data and isinstance(mh_data, dict):
                                     subcontracts_meter_history[sc_code] = mh_data
                             subcontracts_meter_history = subcontracts_meter_history or None
-                        else:
-                            subcontracts_graphic_consumption = prev.get("subcontracts_graphic_consumption")
-                            subcontracts_meter_history = prev.get("subcontracts_meter_history")
 
                         _LOGGER.debug(
                             "DUO arhive (contract=%s): graphic_consumption=%s, meter_history=%s.",

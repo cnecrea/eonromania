@@ -408,7 +408,7 @@ Nu necesită dependențe externe (nu instalează pachete pip/npm).
 
 4. **Planuri eșalonare** — senzorul apare doar dacă API-ul returnează date de eșalonare.
 
-5. **DUO — Arhivă consum și Arhivă index** — endpoint-urile nu funcționează pe contractul colectiv (părinte), dar funcționează pe subcontracte. Senzorii se creează per subcontract (gaz și electricitate), iar datele se actualizează la refresh-ul complet. Unitatea de măsură (`m3` / `kwh`) se citește din fiecare subcontract.
+5. **DUO — Arhivă consum și Arhivă index** — endpoint-urile nu funcționează pe contractul colectiv (părinte), dar funcționează pe subcontracte. Senzorii se creează per subcontract (gaz și electricitate). `Arhivă index` se actualizează la refresh-ul complet, iar `Arhivă consum` își calculează valorile la pornirea integrării. Unitatea de măsură (`m3` / `kwh`) se citește din fiecare subcontract.
 
 ---
 
