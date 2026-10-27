@@ -31,6 +31,7 @@ from .helpers import (
     format_number_ro,
     format_ron,
     get_meter_data,
+    get_subcontract_um,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -213,7 +214,8 @@ def _build_sensors_for_coordinator(
                     ))
 
     # ── 4. ArhivaSensor (doar ultimul an) ──
-    # (nu se creează pentru contracte colective — endpoint-ul nu funcționează)
+    # (la contractele colective/DUO se creează per subcontract — endpoint-ul nu
+    # funcționează pe contractul colectiv, dar funcționează pe subcontracte)
     arhiva_data = coordinator.data.get("meter_history") if coordinator.data else None
     if arhiva_data and not is_collective:
         history_list = arhiva_data.get("history", [])
@@ -221,6 +223,19 @@ def _build_sensors_for_coordinator(
         if valid_years:
             max_year = max(valid_years)
             sensors.append(ArhivaSensor(coordinator, config_entry, max_year))
+    elif is_collective:
+        smh = coordinator.data.get("subcontracts_meter_history") if coordinator.data else None
+        if smh and isinstance(smh, dict):
+            for sc_code, sc_history in smh.items():
+                if not isinstance(sc_history, dict):
+                    continue
+                valid_years = [
+                    item.get("year") for item in sc_history.get("history", []) if item.get("year")
+                ]
+                if valid_years:
+                    sensors.append(ArhivaSensor(
+                        coordinator, config_entry, max(valid_years), subcontract_code=sc_code,
+                    ))
 
     # ── 5. ArhivaPlatiSensor (doar ultimul an) ──
     payments_list = coordinator.data.get("payments", []) if coordinator.data else []
@@ -240,30 +255,42 @@ def _build_sensors_for_coordinator(
             sensors.append(ArhivaPlatiSensor(coordinator, config_entry, max_year))
 
     # ── 6. ArhivaComparareConsumAnualGraficSensor (doar ultimul an) ──
-    # (nu se creează pentru contracte colective — endpoint-ul nu funcționează)
-    comparareanualagrafic_data = coordinator.data.get("graphic_consumption", {}) if (coordinator.data and not is_collective) else {}
-    if isinstance(comparareanualagrafic_data, dict) and "consumption" in comparareanualagrafic_data:
-        yearly_data: dict[int, dict] = defaultdict(dict)
-        for item in comparareanualagrafic_data["consumption"]:
-            year = item.get("year")
-            month = item.get("month")
-            consumption_value = item.get("consumptionValue")
-            consumption_day_value = item.get("consumptionValueDayValue")
-            if not year or not month or consumption_value is None or consumption_day_value is None:
-                continue
-            yearly_data[year][month] = {
-                "consumptionValue": consumption_value,
-                "consumptionValueDayValue": consumption_day_value,
-            }
+    # (la contractele colective/DUO se creează per subcontract — endpoint-ul nu
+    # funcționează pe contractul colectiv, dar funcționează pe subcontracte)
+    if not is_collective:
+        comparareanualagrafic_sources = [
+            (None, coordinator.data.get("graphic_consumption", {}) if coordinator.data else {}),
+        ]
+    else:
+        sgc = coordinator.data.get("subcontracts_graphic_consumption") if coordinator.data else None
+        comparareanualagrafic_sources = list(sgc.items()) if isinstance(sgc, dict) else []
 
-        cleaned_yearly_data = {
-            year: monthly_values
-            for year, monthly_values in yearly_data.items()
-            if any(v["consumptionValue"] > 0 or v["consumptionValueDayValue"] > 0 for v in monthly_values.values())
-        }
-        if cleaned_yearly_data:
-            max_year = max(cleaned_yearly_data.keys())
-            sensors.append(ArhivaComparareConsumAnualGraficSensor(coordinator, config_entry, max_year, cleaned_yearly_data[max_year]))
+    for sc_code, comparareanualagrafic_data in comparareanualagrafic_sources:
+        if isinstance(comparareanualagrafic_data, dict) and "consumption" in comparareanualagrafic_data:
+            yearly_data: dict[int, dict] = defaultdict(dict)
+            for item in comparareanualagrafic_data["consumption"]:
+                year = item.get("year")
+                month = item.get("month")
+                consumption_value = item.get("consumptionValue")
+                consumption_day_value = item.get("consumptionValueDayValue")
+                if not year or not month or consumption_value is None or consumption_day_value is None:
+                    continue
+                yearly_data[year][month] = {
+                    "consumptionValue": consumption_value,
+                    "consumptionValueDayValue": consumption_day_value,
+                }
+
+            cleaned_yearly_data = {
+                year: monthly_values
+                for year, monthly_values in yearly_data.items()
+                if any(v["consumptionValue"] > 0 or v["consumptionValueDayValue"] > 0 for v in monthly_values.values())
+            }
+            if cleaned_yearly_data:
+                max_year = max(cleaned_yearly_data.keys())
+                sensors.append(ArhivaComparareConsumAnualGraficSensor(
+                    coordinator, config_entry, max_year, cleaned_yearly_data[max_year],
+                    subcontract_code=sc_code,
+                ))
 
     return sensors
 
@@ -1397,26 +1424,44 @@ class ConventieConsumSensor(EonRomaniaEntity):
 class ArhivaSensor(EonRomaniaEntity):
     """Senzor pentru afișarea datelor istorice ale consumului."""
 
-    def __init__(self, coordinator, config_entry, year):
+    def __init__(self, coordinator, config_entry, year, subcontract_code=None):
         super().__init__(coordinator, config_entry)
         self.year = year
-        um = coordinator.data.get("um", "m3") if coordinator.data else "m3"
+        self._subcontract_code = subcontract_code
+        um = self._um
         is_gaz = um.lower().startswith("m")
+        id_code = subcontract_code or self._cod_incasare
         self._attr_name = f"{year} → Arhivă index gaz" if is_gaz else f"{year} → Arhivă index energie electrică"
         self._attr_icon = "mdi:clipboard-text-clock" if is_gaz else "mdi:clipboard-text-clock-outline"
         self._attr_translation_key = "arhiva_index_gaz" if is_gaz else "arhiva_index_energie_electrica"
-        self._attr_unique_id = f"{DOMAIN}_arhiva_index_{self._cod_incasare}_{year}"
+        self._attr_unique_id = f"{DOMAIN}_arhiva_index_{id_code}_{year}"
         self._custom_entity_id = (
-            f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_index_gaz_{year}"
+            f"sensor.{DOMAIN}_{id_code}_arhiva_index_gaz_{year}"
             if is_gaz
-            else f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_index_energie_electrica_{year}"
+            else f"sensor.{DOMAIN}_{id_code}_arhiva_index_energie_electrica_{year}"
         )
+
+    @property
+    def _um(self) -> str:
+        """Unitatea de măsură: la DUO din subcontract, altfel din coordinator."""
+        if self._subcontract_code:
+            return get_subcontract_um(self.coordinator.data, self._subcontract_code)
+        return self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
+
+    def _meter_history(self) -> dict:
+        """Istoricul citirilor: per subcontract la DUO, altfel al contractului."""
+        if not self.coordinator.data:
+            return {}
+        if self._subcontract_code:
+            smh = self.coordinator.data.get("subcontracts_meter_history") or {}
+            return smh.get(self._subcontract_code) or {}
+        return self.coordinator.data.get("meter_history", {})
 
     @property
     def native_value(self):
         if not self._license_valid:
             return "Licență necesară"
-        arhiva_data = self.coordinator.data.get("meter_history", {}) if self.coordinator.data else {}
+        arhiva_data = self._meter_history()
         history_list = arhiva_data.get("history", [])
         year_data = next((y for y in history_list if y.get("year") == self.year), None)
         if not year_data:
@@ -1434,12 +1479,12 @@ class ArhivaSensor(EonRomaniaEntity):
     def extra_state_attributes(self):
         if not self._license_valid:
             return {"licență": "necesară"}
-        arhiva_data = self.coordinator.data.get("meter_history", {}) if self.coordinator.data else {}
+        arhiva_data = self._meter_history()
         history_list = arhiva_data.get("history", [])
         year_data = next((y for y in history_list if y.get("year") == self.year), None)
         if not year_data:
             return {}
-        unit = self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
+        unit = self._um
         attributes = {}
         readings_list = []
         for meter in year_data.get("meters", []):
@@ -1519,21 +1564,30 @@ class ArhivaPlatiSensor(EonRomaniaEntity):
 class ArhivaComparareConsumAnualGraficSensor(EonRomaniaEntity):
     """Senzor pentru afișarea datelor istorice ale consumului."""
 
-    def __init__(self, coordinator, config_entry, year, monthly_values):
+    def __init__(self, coordinator, config_entry, year, monthly_values, subcontract_code=None):
         super().__init__(coordinator, config_entry)
         self._year = year
         self._monthly_values = monthly_values
-        um = coordinator.data.get("um", "m3") if coordinator.data else "m3"
+        self._subcontract_code = subcontract_code
+        um = self._um
         is_gaz = um.lower().startswith("m")
+        id_code = subcontract_code or self._cod_incasare
         self._attr_name = f"{year} → Arhivă consum gaz" if is_gaz else f"{year} → Arhivă consum energie electrică"
         self._attr_icon = "mdi:chart-bar" if is_gaz else "mdi:lightning-bolt"
         self._attr_translation_key = "arhiva_consum_gaz" if is_gaz else "arhiva_consum_energie_electrica"
-        self._attr_unique_id = f"{DOMAIN}_arhiva_consum_{self._cod_incasare}_{year}"
+        self._attr_unique_id = f"{DOMAIN}_arhiva_consum_{id_code}_{year}"
         self._custom_entity_id = (
-            f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_consum_gaz_{year}"
+            f"sensor.{DOMAIN}_{id_code}_arhiva_consum_gaz_{year}"
             if is_gaz
-            else f"sensor.{DOMAIN}_{self._cod_incasare}_arhiva_consum_energie_electrica_{year}"
+            else f"sensor.{DOMAIN}_{id_code}_arhiva_consum_energie_electrica_{year}"
         )
+
+    @property
+    def _um(self) -> str:
+        """Unitatea de măsură: la DUO din subcontract, altfel din coordinator."""
+        if self._subcontract_code:
+            return get_subcontract_um(self.coordinator.data, self._subcontract_code)
+        return self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
 
     @property
     def native_value(self):
@@ -1550,7 +1604,7 @@ class ArhivaComparareConsumAnualGraficSensor(EonRomaniaEntity):
     def extra_state_attributes(self):
         if not self._license_valid:
             return {"licență": "necesară"}
-        unit = self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
+        unit = self._um
         attributes = {"attribution": ATTRIBUTION}
         attributes.update(
             {

@@ -203,6 +203,10 @@ Toate setările pot fi modificate din UI, fără a șterge și readăuga integra
 | Index electricitate (subcontract) | `sensor.eonromania_{cod_subcontract}_index_energie_electrica` |
 | Citire permisă gaz | `sensor.eonromania_{cod_subcontract}_citire_permisa` |
 | Citire permisă electricitate | `sensor.eonromania_{cod_subcontract}_citire_permisa` |
+| Arhivă consum gaz (an) | `sensor.eonromania_{cod_subcontract}_arhiva_consum_gaz_{an}` |
+| Arhivă consum electricitate (an) | `sensor.eonromania_{cod_subcontract}_arhiva_consum_energie_electrica_{an}` |
+| Arhivă index gaz (an) | `sensor.eonromania_{cod_subcontract}_arhiva_index_gaz_{an}` |
+| Arhivă index electricitate (an) | `sensor.eonromania_{cod_subcontract}_arhiva_index_energie_electrica_{an}` |
 | Trimite index gaz (subcontract) | `button.eonromania_{cod_subcontract}_trimite_index_gaz` |
 | Trimite index electricitate (subcontract) | `button.eonromania_{cod_subcontract}_trimite_index_energie_electrica` |
 

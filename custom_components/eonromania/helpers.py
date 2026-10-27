@@ -487,6 +487,26 @@ def get_subcontract_utility_type(
     return None
 
 
+def get_subcontract_um(coordinator_data: dict | None, sc_code: str) -> str:
+    """Obține unitatea de măsură (m3 / kwh) pentru un subcontract DUO.
+
+    Folosește câmpul `um` din graphic_consumption al subcontractului. La DUO,
+    `coordinator_data["um"]` rămâne mereu implicit (m3), deci nu e de folosit.
+    Fallback: utilityType din lista de subcontracte, apoi "m3".
+    """
+    if coordinator_data:
+        sgc = coordinator_data.get("subcontracts_graphic_consumption")
+        if sgc and isinstance(sgc, dict):
+            gc_data = sgc.get(sc_code)
+            if isinstance(gc_data, dict) and gc_data.get("um"):
+                return str(gc_data["um"]).lower()
+        utility_type = get_subcontract_utility_type(coordinator_data.get("subcontracts"), sc_code)
+        for um, utility in UNIT_TO_UTILITY.items():
+            if utility == utility_type:
+                return um
+    return "m3"
+
+
 def get_meter_data(coordinator_data: dict | None, account_contract: str, is_subcontract: bool = False) -> dict | None:
     """Obține datele meter_index pentru un contract sau subcontract.
 
