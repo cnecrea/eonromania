@@ -231,6 +231,28 @@ def format_invoice_due_message(display_value: float, raw_date: str, date_format:
     return f"Sumă de {format_ron(display_value)} lei scadentă pe luna {month_name_ro} ({days_until_due} {day_unit})"
 
 
+def next_due_attributes(raw_dates: list[Any], date_format: str = "%d.%m.%Y") -> dict[str, Any]:
+    """Atributele „Următoarea scadență" și „Zile până la scadență" pentru facturile de plată.
+
+    Se ia cea mai apropiată dată validă (o restanță are prioritate față de o factură care
+    abia urmează). Zilele sunt număr — negative când termenul a trecut — ca să poată fi
+    folosite direct în automatizări. Fără nicio dată validă întoarce {}: atributele lipsesc.
+    """
+    dates = []
+    for raw in raw_dates:
+        try:
+            dates.append(datetime.strptime(raw, date_format).date())
+        except (TypeError, ValueError):
+            continue
+    if not dates:
+        return {}
+    nearest = min(dates)
+    return {
+        "Următoarea scadență": nearest.strftime(date_format),
+        "Zile până la scadență": (nearest - dt_util.now().date()).days,
+    }
+
+
 # ══════════════════════════════════════════════
 # Funcții de autentificare
 # ══════════════════════════════════════════════
