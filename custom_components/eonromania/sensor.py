@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -32,6 +32,7 @@ from .helpers import (
     format_ron,
     get_meter_data,
     get_subcontract_um,
+    next_due_attributes,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -136,6 +137,7 @@ def _build_sensors_for_coordinator(
     # ── 1. Senzori de bază (mereu prezenți) ──
     sensors.append(ContractDetailsSensor(coordinator, config_entry))
     sensors.append(FacturaRestantaSensor(coordinator, config_entry))
+    sensors.append(TotalDePlataSensor(coordinator, config_entry))
     sensors.append(InvoiceBalanceSensor(coordinator, config_entry))
 
     # Convenție consum — funcționează atât pe individuale cât și pe colective/DUO
@@ -1136,6 +1138,13 @@ class CitirePermisaSensor(EonRomaniaEntity):
         return "mdi:cog-stop-outline"
 
 
+def _de_plata(item: dict) -> float:
+    """Cât mai e de plată dintr-o factură: valoarea emisă dacă nu s-a plătit nimic, altfel soldul rămas."""
+    issued_value = float(item.get("issuedValue", 0))
+    balance_value = float(item.get("balanceValue", 0))
+    return issued_value if issued_value == balance_value else balance_value
+
+
 # ──────────────────────────────────────────────
 # FacturaRestantaSensor
 # ──────────────────────────────────────────────
@@ -1174,15 +1183,15 @@ class FacturaRestantaSensor(EonRomaniaEntity):
 
         attributes = {}
         total_sold = 0.0
+        due_dates = []
 
         for idx, item in enumerate(data, start=1):
-            issued_value = float(item.get("issuedValue", 0))
-            balance_value = float(item.get("balanceValue", 0))
-            display_value = issued_value if issued_value == balance_value else balance_value
+            display_value = _de_plata(item)
 
             if display_value > 0:
                 total_sold += display_value
                 raw_date = item.get("maturityDate", "Necunoscut")
+                due_dates.append(raw_date)
                 try:
                     msg = format_invoice_due_message(display_value, raw_date)
                     attributes[f"Factură {idx}"] = msg
@@ -1190,6 +1199,51 @@ class FacturaRestantaSensor(EonRomaniaEntity):
                     attributes[f"Factură {idx}"] = "Data scadenței necunoscută"
 
         attributes["Total neachitat"] = f"{format_ron(total_sold)} lei" if total_sold > 0 else "0,00 lei"
+        attributes.update(next_due_attributes(due_dates))
+        attributes["attribution"] = ATTRIBUTION
+        return attributes
+
+
+# ──────────────────────────────────────────────
+# TotalDePlataSensor
+# ──────────────────────────────────────────────
+class TotalDePlataSensor(EonRomaniaEntity):
+    """Suma de plată din facturile neachitate, ca număr în lei — pentru grafice și automatizări.
+
+    Același calcul ca atributul „Total neachitat" din „Factură restantă".
+    """
+
+    _attr_icon = "mdi:cash-clock"
+    _attr_translation_key = "total_de_plata"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = "RON"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator, config_entry):
+        super().__init__(coordinator, config_entry)
+        self._attr_name = "Total de plată"
+        self._attr_unique_id = f"{DOMAIN}_total_de_plata_{self._cod_incasare}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_total_de_plata"
+
+    def _unpaid(self) -> list:
+        """Facturile cu sumă de plată (> 0) din lista de facturi neachitate."""
+        data = self.coordinator.data.get("invoices_unpaid") if self.coordinator.data else None
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict) and _de_plata(item) > 0]
+
+    @property
+    def native_value(self):
+        # senzor numeric: fără licență sau fără date nu are valoare (nu un text)
+        if not self._license_valid or not self.coordinator.data:
+            return None
+        return round(sum(_de_plata(item) for item in self._unpaid()), 2)
+
+    @property
+    def extra_state_attributes(self):
+        if not self._license_valid:
+            return {"licență": "necesară"}
+        attributes = {"Facturi de plată": len(self._unpaid())}
         attributes["attribution"] = ATTRIBUTION
         return attributes
 
@@ -1237,11 +1291,10 @@ class FacturaProsumSensor(EonRomaniaEntity):
         attributes = {}
         total_sold = 0.0
         total_credit = 0.0
+        due_dates = []
 
         for idx, item in enumerate(data, start=1):
-            issued_value = float(item.get("issuedValue", 0))
-            balance_value = float(item.get("balanceValue", 0))
-            display_value = issued_value if issued_value == balance_value else balance_value
+            display_value = _de_plata(item)
             raw_date = item.get("maturityDate", "Necunoscut")
             invoice_number = item.get("invoiceNumber", "N/A")
             invoice_type = item.get("type", "Necunoscut")
@@ -1249,6 +1302,7 @@ class FacturaProsumSensor(EonRomaniaEntity):
             try:
                 if display_value > 0:
                     total_sold += display_value
+                    due_dates.append(raw_date)  # doar datoriile; creditele nu au de plătit
                     msg = format_invoice_due_message(display_value, raw_date)
                     attributes[f"Factură {idx} ({invoice_number})"] = msg
                 elif display_value < 0:
@@ -1268,6 +1322,7 @@ class FacturaProsumSensor(EonRomaniaEntity):
         if total_credit > 0:
             attributes["Total credit"] = f"{format_ron(total_credit)} lei"
         attributes["Total neachitat"] = f"{format_ron(total_sold)} lei" if total_sold > 0 else "0,00 lei"
+        attributes.update(next_due_attributes(due_dates))
         attributes["attribution"] = ATTRIBUTION
         return attributes
 
