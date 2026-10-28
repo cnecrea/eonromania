@@ -193,6 +193,7 @@ Toate setările pot fi modificate din UI, fără a șterge și readăuga integra
 | Senzor | Entity ID (gaz) | Entity ID (electricitate) |
 |---|---|---|
 | Index | `…_{cod}_index_gaz` | `…_{cod}_index_energie_electrica` |
+| Arhivă consum (ultimele 12 luni) | `…_{cod}_arhiva_consum_gaz` | `…_{cod}_arhiva_consum_energie_electrica` |
 | Arhivă consum (an) | `…_{cod}_arhiva_consum_gaz_{an}` | `…_{cod}_arhiva_consum_energie_electrica_{an}` |
 | Arhivă index (an) | `…_{cod}_arhiva_index_gaz_{an}` | `…_{cod}_arhiva_index_energie_electrica_{an}` |
 
@@ -204,6 +205,8 @@ Toate setările pot fi modificate din UI, fără a șterge și readăuga integra
 | Index electricitate (subcontract) | `sensor.eonromania_{cod_subcontract}_index_energie_electrica` |
 | Citire permisă gaz | `sensor.eonromania_{cod_subcontract}_citire_permisa` |
 | Citire permisă electricitate | `sensor.eonromania_{cod_subcontract}_citire_permisa` |
+| Arhivă consum gaz (ultimele 12 luni) | `sensor.eonromania_{cod_subcontract}_arhiva_consum_gaz` |
+| Arhivă consum electricitate (ultimele 12 luni) | `sensor.eonromania_{cod_subcontract}_arhiva_consum_energie_electrica` |
 | Arhivă consum gaz (an) | `sensor.eonromania_{cod_subcontract}_arhiva_consum_gaz_{an}` |
 | Arhivă consum electricitate (an) | `sensor.eonromania_{cod_subcontract}_arhiva_consum_energie_electrica_{an}` |
 | Arhivă index gaz (an) | `sensor.eonromania_{cod_subcontract}_arhiva_index_gaz_{an}` |

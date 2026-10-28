@@ -24,7 +24,7 @@ Oferă senzori dedicați per cod de încasare pentru contract, index curent, sol
 - **Istoric citiri** — indexuri lunare cu tip citire (autocitit / estimat / citit distribuitor)
 - **Arhivă plăți** — plățile efectuate pe an, cu total anual
 - **Arhivă facturi** — facturile emise în ultimele 12 luni (plătite și neplătite), cu luna și anul emiterii și total facturat
-- **Arhivă consum** — consum lunar și mediu zilnic per an, cu separatorul zecimal românesc (virgulă)
+- **Arhivă consum** — consum lunar și mediu zilnic pe ultimele 12 luni (entitate stabilă de la an la an) și per an, cu separatorul zecimal românesc (virgulă)
 - **Adrese normalizate** — formatare corectă din datele API în format românesc
 - **Mapping județe** — coduri scurte (AB, BV, CJ) convertite automat în denumiri complete (Alba, Brașov, Cluj)
 - **Sistem de licență** — fără licență validă se afișează doar senzorul „Licență necesară"
@@ -137,6 +137,7 @@ Integrarea creează un **device** per contract selectat. Sub fiecare device se c
 | `{an} → Arhivă index gaz` / `energie electrică` | Indexuri lunare per an | Număr citiri |
 | `{an} → Arhivă plăți` | Plăți lunare per an | Număr plăți |
 | `Arhivă facturi` | Facturi emise în ultimele 12 luni (luna și anul emiterii; neachitate/stornate marcate) | Număr facturi |
+| `Arhivă consum gaz` / `energie electrică` | Consum lunar + mediu zilnic pe ultimele 12 luni | Total consum |
 | `{an} → Arhivă consum gaz` / `energie electrică` | Consum lunar + mediu zilnic per an | Total consum |
 
 ### Contract colectiv / DUO (gaz + electricitate)
@@ -151,6 +152,7 @@ Pe lângă senzorii de bază (Date contract, Sold factură, Factură restantă, 
 | `Citire permisă electricitate` | Autocitire activă pe electricitate? | Da / Nu |
 | `Convenție consum` | Convenție per utilitate (gaz + electricitate) | Da / Nu |
 | `{an} → Arhivă index gaz` / `energie electrică` | Indexuri lunare per an (subcontract) | Număr citiri |
+| `Arhivă consum gaz` / `energie electrică` | Consum lunar + mediu zilnic pe ultimele 12 luni (subcontract) | Total consum |
 | `{an} → Arhivă consum gaz` / `energie electrică` | Consum lunar + mediu zilnic per an (subcontract) | Total consum |
 
 Senzorul `Date contract` pentru DUO afișează în atribute: detalii contract colectiv, subcontracte cu coduri și adrese, plus detalii complete per subcontract (prețuri, contor, OD, NLC, POD).
@@ -299,7 +301,22 @@ Electricitate — ianuarie: "85 kWh"
 ...
 ```
 
-### Senzor: Arhivă consum gaz / energie electrică
+### Senzor: Arhivă consum gaz / energie electrică (ultimele 12 luni)
+
+**Valoare principală**: consum total pe ultimele 12 luni (fereastra trece peste granița dintre ani; entitatea nu se schimbă de la an la an)
+
+**Atribute** (în ordine cronologică, cu anul în etichetă):
+```yaml
+Consum lunar noiembrie 2025: "98,39 m³"
+Consum lunar decembrie 2025: "138,19 m³"
+...
+────: ""
+Consum mediu zilnic în noiembrie 2025: "3,28 m³"
+Consum mediu zilnic în decembrie 2025: "4,458 m³"
+...
+```
+
+### Senzor: {an} → Arhivă consum gaz / energie electrică
 
 **Valoare principală**: consum total anual
 
@@ -411,7 +428,7 @@ Nu necesită dependențe externe (nu instalează pachete pip/npm).
 
 4. **Planuri eșalonare** — senzorul apare doar dacă API-ul returnează date de eșalonare.
 
-5. **DUO — Arhivă consum și Arhivă index** — endpoint-urile nu funcționează pe contractul colectiv (părinte), dar funcționează pe subcontracte. Senzorii se creează per subcontract (gaz și electricitate). `Arhivă index` se actualizează la refresh-ul complet, iar `Arhivă consum` își calculează valorile la pornirea integrării. Unitatea de măsură (`m3` / `kwh`) se citește din fiecare subcontract.
+5. **DUO — Arhivă consum și Arhivă index** — endpoint-urile nu funcționează pe contractul colectiv (părinte), dar funcționează pe subcontracte. Senzorii se creează per subcontract (gaz și electricitate). `Arhivă index` și `Arhivă consum` se actualizează la refresh-ul complet. Unitatea de măsură (`m3` / `kwh`) se citește din fiecare subcontract.
 
 ---
 

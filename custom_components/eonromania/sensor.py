@@ -271,31 +271,14 @@ def _build_sensors_for_coordinator(
         comparareanualagrafic_sources = list(sgc.items()) if isinstance(sgc, dict) else []
 
     for sc_code, comparareanualagrafic_data in comparareanualagrafic_sources:
-        if isinstance(comparareanualagrafic_data, dict) and "consumption" in comparareanualagrafic_data:
-            yearly_data: dict[int, dict] = defaultdict(dict)
-            for item in comparareanualagrafic_data["consumption"]:
-                year = item.get("year")
-                month = item.get("month")
-                consumption_value = item.get("consumptionValue")
-                consumption_day_value = item.get("consumptionValueDayValue")
-                if not year or not month or consumption_value is None or consumption_day_value is None:
-                    continue
-                yearly_data[year][month] = {
-                    "consumptionValue": consumption_value,
-                    "consumptionValueDayValue": consumption_day_value,
-                }
-
-            cleaned_yearly_data = {
-                year: monthly_values
-                for year, monthly_values in yearly_data.items()
-                if any(v["consumptionValue"] > 0 or v["consumptionValueDayValue"] > 0 for v in monthly_values.values())
-            }
-            if cleaned_yearly_data:
-                max_year = max(cleaned_yearly_data.keys())
-                sensors.append(ArhivaComparareConsumAnualGraficSensor(
-                    coordinator, config_entry, max_year, cleaned_yearly_data[max_year],
-                    subcontract_code=sc_code,
-                ))
+        cleaned_yearly_data = parse_graphic_consumption_years(comparareanualagrafic_data)
+        if cleaned_yearly_data:
+            max_year = max(cleaned_yearly_data.keys())
+            sensors.append(ArhivaComparareConsumAnualGraficSensor(
+                coordinator, config_entry, max_year, subcontract_code=sc_code,
+            ))
+            # ── 7. ArhivaConsumSensor (ultimele 12 luni, entitate fără an) ──
+            sensors.append(ArhivaConsumSensor(coordinator, config_entry, subcontract_code=sc_code))
 
     return sensors
 
@@ -1639,19 +1622,137 @@ class ArhivaFacturiSensor(EonRomaniaEntity):
 
 
 # ──────────────────────────────────────────────
+# Arhivă consum (graphic-consumption)
+# ──────────────────────────────────────────────
+def parse_graphic_consumption(graphic_data) -> dict[tuple[int, int], dict]:
+    """Lunile din răspunsul graphic-consumption, ca {(an, lună): valori}.
+
+    Rândurile fără lună (totalurile anuale de pe DUO) sau fără valori se ignoră.
+    """
+    if not isinstance(graphic_data, dict) or not isinstance(graphic_data.get("consumption"), list):
+        return {}
+    months: dict[tuple[int, int], dict] = {}
+    for item in graphic_data["consumption"]:
+        if not isinstance(item, dict):
+            continue
+        year = item.get("year")
+        month = item.get("month")
+        consumption_value = item.get("consumptionValue")
+        consumption_day_value = item.get("consumptionValueDayValue")
+        if not year or not month or consumption_value is None or consumption_day_value is None:
+            continue
+        months[(int(year), int(month))] = {
+            "consumptionValue": consumption_value,
+            "consumptionValueDayValue": consumption_day_value,
+        }
+    return months
+
+
+def parse_graphic_consumption_years(graphic_data) -> dict[int, dict[int, dict]]:
+    """Lunile grupate pe ani {an: {lună: valori}}, doar anii cu cel puțin o valoare > 0."""
+    yearly_data: dict[int, dict] = defaultdict(dict)
+    for (year, month), values in parse_graphic_consumption(graphic_data).items():
+        yearly_data[year][month] = values
+    return {
+        year: monthly_values
+        for year, monthly_values in yearly_data.items()
+        if any(v["consumptionValue"] > 0 or v["consumptionValueDayValue"] > 0 for v in monthly_values.values())
+    }
+
+
+class ArhivaConsumBaseSensor(EonRomaniaEntity):
+    """Bază comună pentru senzorii de arhivă consum (citesc din coordinator.data la fiecare actualizare)."""
+
+    def __init__(self, coordinator, config_entry, subcontract_code=None):
+        super().__init__(coordinator, config_entry)
+        self._subcontract_code = subcontract_code
+        self._is_gaz = self._um.lower().startswith("m")
+        self._id_code = subcontract_code or self._cod_incasare
+
+    @property
+    def _um(self) -> str:
+        """Unitatea de măsură: la DUO din subcontract, altfel din coordinator."""
+        if self._subcontract_code:
+            return get_subcontract_um(self.coordinator.data, self._subcontract_code)
+        return self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
+
+    @property
+    def _graphic_data(self):
+        """Răspunsul graphic-consumption: al subcontractului la DUO, altfel al contractului."""
+        if not self.coordinator.data:
+            return None
+        if self._subcontract_code:
+            sgc = self.coordinator.data.get("subcontracts_graphic_consumption")
+            return sgc.get(self._subcontract_code) if isinstance(sgc, dict) else None
+        return self.coordinator.data.get("graphic_consumption")
+
+    @property
+    def native_unit_of_measurement(self):
+        return None
+
+
+# ──────────────────────────────────────────────
+# ArhivaConsumSensor
+# ──────────────────────────────────────────────
+class ArhivaConsumSensor(ArhivaConsumBaseSensor):
+    """Senzor pentru consumul din ultimele 12 luni (fereastra tăiată de integrare, peste granița dintre ani)."""
+
+    WINDOW_MONTHS = 12
+
+    def __init__(self, coordinator, config_entry, subcontract_code=None):
+        super().__init__(coordinator, config_entry, subcontract_code)
+        kind = "gaz" if self._is_gaz else "energie_electrica"
+        self._attr_name = "Arhivă consum gaz" if self._is_gaz else "Arhivă consum energie electrică"
+        self._attr_icon = "mdi:chart-bar" if self._is_gaz else "mdi:lightning-bolt"
+        self._attr_unique_id = f"{DOMAIN}_arhiva_consum_{self._id_code}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._id_code}_arhiva_consum_{kind}"
+
+    def _months_in_window(self) -> list:
+        """Ultimele 12 luni după (an, lună), în ordine cronologică."""
+        months = parse_graphic_consumption(self._graphic_data)
+        return sorted(months.items())[-self.WINDOW_MONTHS:]
+
+    @property
+    def native_value(self):
+        if not self._license_valid:
+            return None
+        total = sum(v["consumptionValue"] for _, v in self._months_in_window())
+        return round(total, 2)
+
+    @property
+    def extra_state_attributes(self):
+        if not self._license_valid:
+            return {"licență": "necesară"}
+        unit = self._um
+        months = self._months_in_window()
+        attributes = {"attribution": ATTRIBUTION}
+        attributes.update(
+            {
+                f"Consum lunar {MONTHS_NUM_RO.get(month, 'necunoscut')} {year}": f"{format_number_ro(value['consumptionValue'])} {unit}"
+                for (year, month), value in months
+            }
+        )
+        attributes["────"] = ""
+        attributes.update(
+            {
+                f"Consum mediu zilnic în {MONTHS_NUM_RO.get(month, 'necunoscut')} {year}": f"{format_number_ro(value['consumptionValueDayValue'])} {unit}"
+                for (year, month), value in months
+            }
+        )
+        return attributes
+
+
+# ──────────────────────────────────────────────
 # ArhivaComparareConsumAnualGraficSensor
 # ──────────────────────────────────────────────
-class ArhivaComparareConsumAnualGraficSensor(EonRomaniaEntity):
+class ArhivaComparareConsumAnualGraficSensor(ArhivaConsumBaseSensor):
     """Senzor pentru afișarea datelor istorice ale consumului."""
 
-    def __init__(self, coordinator, config_entry, year, monthly_values, subcontract_code=None):
-        super().__init__(coordinator, config_entry)
+    def __init__(self, coordinator, config_entry, year, subcontract_code=None):
+        super().__init__(coordinator, config_entry, subcontract_code)
         self._year = year
-        self._monthly_values = monthly_values
-        self._subcontract_code = subcontract_code
-        um = self._um
-        is_gaz = um.lower().startswith("m")
-        id_code = subcontract_code or self._cod_incasare
+        is_gaz = self._is_gaz
+        id_code = self._id_code
         self._attr_name = f"{year} → Arhivă consum gaz" if is_gaz else f"{year} → Arhivă consum energie electrică"
         self._attr_icon = "mdi:chart-bar" if is_gaz else "mdi:lightning-bolt"
         self._attr_translation_key = "arhiva_consum_gaz" if is_gaz else "arhiva_consum_energie_electrica"
@@ -1663,11 +1764,9 @@ class ArhivaComparareConsumAnualGraficSensor(EonRomaniaEntity):
         )
 
     @property
-    def _um(self) -> str:
-        """Unitatea de măsură: la DUO din subcontract, altfel din coordinator."""
-        if self._subcontract_code:
-            return get_subcontract_um(self.coordinator.data, self._subcontract_code)
-        return self.coordinator.data.get("um", "m3") if self.coordinator.data else "m3"
+    def _monthly_values(self) -> dict[int, dict]:
+        """Lunile anului senzorului, citite din coordinator.data la fiecare actualizare."""
+        return parse_graphic_consumption_years(self._graphic_data).get(self._year, {})
 
     @property
     def native_value(self):
@@ -1677,26 +1776,23 @@ class ArhivaComparareConsumAnualGraficSensor(EonRomaniaEntity):
         return round(total, 2)
 
     @property
-    def native_unit_of_measurement(self):
-        return None
-
-    @property
     def extra_state_attributes(self):
         if not self._license_valid:
             return {"licență": "necesară"}
         unit = self._um
+        monthly_values = sorted(self._monthly_values.items())
         attributes = {"attribution": ATTRIBUTION}
         attributes.update(
             {
-                f"Consum lunar {MONTHS_NUM_RO.get(int(month), 'necunoscut')}": f"{format_number_ro(value['consumptionValue'])} {unit}"
-                for month, value in sorted(self._monthly_values.items(), key=lambda item: int(item[0]))
+                f"Consum lunar {MONTHS_NUM_RO.get(month, 'necunoscut')}": f"{format_number_ro(value['consumptionValue'])} {unit}"
+                for month, value in monthly_values
             }
         )
         attributes["────"] = ""
         attributes.update(
             {
-                f"Consum mediu zilnic în {MONTHS_NUM_RO.get(int(month), 'necunoscut')}": f"{format_number_ro(value['consumptionValueDayValue'])} {unit}"
-                for month, value in sorted(self._monthly_values.items(), key=lambda item: int(item[0]))
+                f"Consum mediu zilnic în {MONTHS_NUM_RO.get(month, 'necunoscut')}": f"{format_number_ro(value['consumptionValueDayValue'])} {unit}"
+                for month, value in monthly_values
             }
         )
         return attributes
