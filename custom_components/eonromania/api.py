@@ -62,6 +62,12 @@ def _extract_access_token(data: dict) -> str | None:
     return data.get("access_token") or data.get("accessToken") or data.get("token")
 
 
+# Refuzuri cunoscute la trimiterea indexului (code din răspunsul E·ON → motivul în română)
+SUBMIT_ERROR_MESSAGES: dict[str, str] = {
+    "4003": "perioada de citire nu este deschisă",
+}
+
+
 class EonApiClient:
     """Clasă pentru comunicarea cu API-ul E·ON România."""
 
@@ -83,6 +89,10 @@ class EonApiClient:
         self._timeout = ClientTimeout(total=API_TIMEOUT)
         self._auth_lock = asyncio.Lock()
         self._token_generation: int = 0
+
+        # Ultimul refuz la trimiterea indexului: motivul (afișat în notificare) și codul E·ON; None la reușită
+        self.last_submit_error: str | None = None
+        self.last_submit_error_code: str | None = None
 
         # MFA state (setat de async_login când MFA e necesar)
         self._mfa_data: dict | None = None
@@ -991,11 +1001,16 @@ class EonApiClient:
     async def async_submit_meter_index(
         self, account_contract: str, indexes: list[dict]
     ):
-        """Trimite indexul contorului către API-ul E·ON."""
+        """Trimite indexul contorului către API-ul E·ON.
+
+        La eșec întoarce None, iar motivul rămâne în `last_submit_error`.
+        """
         label = f"submit_meter ({account_contract})"
+        self.last_submit_error = self.last_submit_error_code = None
 
         if not account_contract or not indexes:
             _LOGGER.error("[%s] Parametri invalizi pentru trimiterea indexului.", label)
+            self.last_submit_error = "parametri invalizi"
             return None
 
         payload = {
@@ -1006,6 +1021,7 @@ class EonApiClient:
 
         if not await self._ensure_token_valid():
             _LOGGER.error("[%s] Token invalid. Trimiterea nu poate fi efectuată.", label)
+            self.last_submit_error = "autentificarea la E·ON a eșuat"
             return None
 
         gen_before = self._token_generation
@@ -1045,6 +1061,7 @@ class EonApiClient:
                         self.invalidate_token()
                         if not await self._ensure_token_valid():
                             _LOGGER.error("[%s] Reautentificare eșuată.", label)
+                            self.last_submit_error = "autentificarea la E·ON a eșuat"
                             return None
 
                     headers_retry = {**self._headers, "Authorization": f"{self._token_type} {self._access_token}"}
@@ -1069,17 +1086,45 @@ class EonApiClient:
                             _LOGGER.debug("[%s] Index trimis cu succes (după reautentificare).", label)
                             return data_retry
                         _LOGGER.error("[%s] Reîncercare eșuată. Cod HTTP=%s", label, resp_retry.status)
+                        self.last_submit_error_code, self.last_submit_error = self._submit_error(resp_retry.status, response_text_retry)
                         return None
 
                 _LOGGER.error("[%s] Eroare. Cod HTTP=%s, Răspuns=%s", label, resp.status, response_text)
+                self.last_submit_error_code, self.last_submit_error = self._submit_error(resp.status, response_text)
                 return None
 
         except asyncio.TimeoutError:
             _LOGGER.error("[%s] Depășire de timp.", label)
+            self.last_submit_error = "E·ON nu a răspuns la timp"
             return None
         except Exception as e:
             _LOGGER.exception("[%s] Eroare: %s", label, e)
+            self.last_submit_error = f"eroare de conexiune ({type(e).__name__})"
             return None
+
+    @staticmethod
+    def _submit_error(status: int, response_text: str) -> tuple[str | None, str]:
+        """(cod, motiv) din răspunsul E·ON la un index refuzat: {"code": "4003", "description": "Invalid reading period"}.
+
+        Codurile cunoscute au motivul în română; altfel descrierea E·ON, scurtată.
+        """
+        try:
+            data = json.loads(response_text) if response_text else {}
+        except (json.JSONDecodeError, ValueError):
+            data = {}
+        if not isinstance(data, dict):
+            return None, f"HTTP {status}"
+        code = str(data.get("code") or "").strip() or None
+        if code in SUBMIT_ERROR_MESSAGES:
+            return code, SUBMIT_ERROR_MESSAGES[code]
+        text = next(
+            (data[k].strip() for k in ("description", "message", "detail", "error")
+             if isinstance(data.get(k), str) and data[k].strip()),
+            "",
+        )
+        if text:
+            return code, f"{text[:300]}{f' (cod {code})' if code else ''}"
+        return code, f"cod {code} (HTTP {status})" if code else f"HTTP {status}"
 
     # ──────────────────────────────────────────
     # Metode interne
