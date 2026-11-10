@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from homeassistant.helpers.selector import SelectOptionDict
@@ -238,19 +238,24 @@ def next_due_attributes(raw_dates: list[Any], date_format: str = "%d.%m.%Y") -> 
     abia urmează). Zilele sunt număr — negative când termenul a trecut — ca să poată fi
     folosite direct în automatizări. Fără nicio dată validă întoarce {}: atributele lipsesc.
     """
+    nearest = next_due_date(raw_dates, date_format)
+    if nearest is None:
+        return {}
+    return {
+        "Următoarea scadență": nearest.strftime(date_format),
+        "Zile până la scadență": (nearest - dt_util.now().date()).days,
+    }
+
+
+def next_due_date(raw_dates: list[Any], date_format: str = "%d.%m.%Y") -> date | None:
+    """Cea mai apropiată scadență dintr-o listă de date („dd.mm.yyyy"); None dacă niciuna nu e validă."""
     dates = []
     for raw in raw_dates:
         try:
             dates.append(datetime.strptime(raw, date_format).date())
         except (TypeError, ValueError):
             continue
-    if not dates:
-        return {}
-    nearest = min(dates)
-    return {
-        "Următoarea scadență": nearest.strftime(date_format),
-        "Zile până la scadență": (nearest - dt_util.now().date()).days,
-    }
+    return min(dates) if dates else None
 
 
 # ══════════════════════════════════════════════
@@ -550,18 +555,51 @@ def get_meter_data(coordinator_data: dict | None, account_contract: str, is_subc
     return coordinator_data.get("meter_index")
 
 
-def extract_ablbelnr(meter_data: dict | None) -> str | None:
-    """Extrage ablbelnr (ID intern contor) din datele meter_index.
+# Codul registrului de energie livrată în rețea (apare doar la prosumatori, lângă cel de consum)
+REGISTER_CODE_DELIVERED = "P"
 
-    Parcurge devices → indexes și returnează primul ablbelnr găsit.
+
+def register_code(register: dict | None) -> str:
+    """Codul unui registru („R", „P"), fără spații și cu majuscule; "" dacă lipsește."""
+    code = register.get("code") if isinstance(register, dict) else None
+    return str(code).strip().upper() if code is not None else ""
+
+
+def split_registers(device: dict | None) -> tuple[dict | None, dict | None]:
+    """Registrele unui contor: (consum, energie livrată).
+
+    La prosumatori, `indexes` are două registre: consumul („R") și energia livrată („P").
+    Energia livrată se recunoaște după cod, nu după poziție, și doar când contorul are cel
+    puțin două registre. Un contor cu un singur registru rămâne exact ca înainte:
+    registrul de consum este `indexes[0]`, oricare i-ar fi codul.
+    """
+    raw = device.get("indexes") if isinstance(device, dict) else None
+    indexes = [i for i in raw or [] if isinstance(i, dict)]
+    if not indexes:
+        return None, None
+    if len(indexes) < 2:
+        return indexes[0], None
+    delivered = next((i for i in indexes if register_code(i) == REGISTER_CODE_DELIVERED), None)
+    if delivered is None:
+        return indexes[0], None
+    consumption = next((i for i in indexes if i is not delivered), None)
+    return consumption, delivered
+
+
+def extract_ablbelnr(meter_data: dict | None) -> str | None:
+    """Extrage ablbelnr (ID intern contor) al registrului de consum din datele meter_index.
+
+    Parcurge devices → indexes și returnează ablbelnr-ul primului registru de consum găsit.
+    La prosumatori nu se ia orbește primul registru: indexul de consum nu trebuie să ajungă
+    pe registrul de energie livrată.
     """
     if not meter_data or not isinstance(meter_data, dict):
         return None
     devices = meter_data.get("indexDetails", {}).get("devices", [])
     for device in devices:
-        indexes = device.get("indexes", [])
-        if indexes:
-            ablbelnr = indexes[0].get("ablbelnr")
+        consumption, _ = split_registers(device)
+        if consumption:
+            ablbelnr = consumption.get("ablbelnr")
             if ablbelnr:
                 return ablbelnr
     return None
