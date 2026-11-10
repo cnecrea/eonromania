@@ -215,6 +215,7 @@ def _rezumat_index(value: Any) -> Any:
             {
                 "campuri": sorted(d.keys()),
                 "registre": len(d.get("indexes") or []),
+                "coduri_registre": _coduri(d.get("indexes") or []),
                 "campuri_registre": _campuri(d.get("indexes") or []),
             }
             for d in devices
@@ -234,6 +235,9 @@ def _rezumat_istoric(value: Any) -> Any:
         ani[str(h.get("year"))] = {
             "contoare": len(meters),
             "registre_pe_contor": [len(m.get("indexes") or []) for m in meters],
+            "coduri_registre": [_coduri(m.get("indexes") or []) for m in meters],
+            "campuri_registre": _campuri(indexes),
+            "campuri_citiri": _campuri([r for i in indexes for r in i.get("readings") or []]),
             "citiri": sum(len(i.get("readings") or []) for i in indexes),
         }
     return {"campuri": sorted(value.keys()), "ani": ani}
@@ -253,6 +257,20 @@ def _campuri(items: Any) -> list[str]:
     if not isinstance(items, list):
         return []
     return sorted({k for i in items if isinstance(i, dict) for k in i.keys()})
+
+
+def _coduri(registre: Any) -> list[str | None]:
+    """Codurile registrelor unui contor („R" = consum, „P" = energie livrată la prosumatori).
+
+    Nu sunt date personale. Se păstrează cel mult 4 caractere, ca un câmp cu alt conținut
+    decât cel așteptat să nu ajungă întreg în diagnostic.
+    """
+    if not isinstance(registre, list):
+        return []
+    return [
+        str(r["code"]).strip()[:4] if r.get("code") is not None else None
+        for r in registre if isinstance(r, dict)
+    ]
 
 
 def _luna(raw: Any) -> str | None:
