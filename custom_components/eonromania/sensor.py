@@ -7,9 +7,10 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.const import UnitOfVolume, UnitOfEnergy
 from homeassistant.util import dt as dt_util
@@ -33,6 +34,9 @@ from .helpers import (
     get_meter_data,
     get_subcontract_um,
     next_due_attributes,
+    next_due_date,
+    register_code,
+    split_registers,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -138,6 +142,8 @@ def _build_sensors_for_coordinator(
     sensors.append(ContractDetailsSensor(coordinator, config_entry))
     sensors.append(FacturaRestantaSensor(coordinator, config_entry))
     sensors.append(TotalDePlataSensor(coordinator, config_entry))
+    sensors.append(DataScadenteiSensor(coordinator, config_entry))
+    sensors.append(ZileScadentaSensor(coordinator, config_entry))
     sensors.append(InvoiceBalanceSensor(coordinator, config_entry))
 
     # Convenție consum — funcționează atât pe individuale cât și pe colective/DUO
@@ -172,6 +178,13 @@ def _build_sensors_for_coordinator(
                 else:
                     _LOGGER.warning("Dispozitiv duplicat ignorat (contract=%s): %s", cod_incasare, device_number)
 
+            # Prosumator: registrul de energie livrată („P") are senzorul lui, unul per contract
+            delivered_device = next((d for d in devices if split_registers(d)[1]), None)
+            if delivered_device:
+                sensors.append(IndexEnergieLivrataSensor(
+                    coordinator, config_entry, delivered_device.get("deviceNumber"),
+                ))
+
             if not devices:
                 sensors.append(CitireIndexSensor(coordinator, config_entry, device_number=None))
                 sensors.append(CitirePermisaSensor(coordinator, config_entry, device_number=None))
@@ -205,6 +218,13 @@ def _build_sensors_for_coordinator(
                                 subcontract_code=sc_code, utility_type=utility_type,
                             ))
                             seen_devices_duo.add(device_number)
+                    # Prosumator: registrul de energie livrată („P"), unul per subcontract
+                    delivered_device = next((d for d in devices if split_registers(d)[1]), None)
+                    if delivered_device:
+                        sensors.append(IndexEnergieLivrataSensor(
+                            coordinator, config_entry, delivered_device.get("deviceNumber"),
+                            subcontract_code=sc_code,
+                        ))
                 else:
                     sensors.append(CitireIndexSensor(
                         coordinator, config_entry, device_number=None,
@@ -922,12 +942,13 @@ class CitireIndexSensor(EonRomaniaEntity):
             return 0
         for dev in devices:
             if dev.get("deviceNumber") == self.device_number:
-                indexes = dev.get("indexes", [])
-                if indexes:
-                    current_value = indexes[0].get("currentValue")
+                # registrul de consum; la prosumatori, cel de energie livrată („P") are senzorul lui
+                consumption, _ = split_registers(dev)
+                if consumption:
+                    current_value = consumption.get("currentValue")
                     if current_value is not None:
                         return int(current_value)
-                    old_value = indexes[0].get("oldValue")
+                    old_value = consumption.get("oldValue")
                     if old_value is not None:
                         return int(old_value)
         return 0
@@ -952,11 +973,10 @@ class CitireIndexSensor(EonRomaniaEntity):
 
         for dev in devices:
             if dev.get("deviceNumber") == self.device_number:
-                indexes = dev.get("indexes", [])
-                if not indexes:
+                first_index, _ = split_registers(dev)  # registrul de consum
+                if not first_index:
                     continue
 
-                first_index = indexes[0]
                 attributes = {}
 
                 if dev.get("deviceNumber") is not None:
@@ -989,11 +1009,102 @@ class CitireIndexSensor(EonRomaniaEntity):
                     attributes["Trimis la"] = first_index.get("sentAt")
                 if first_index.get("canBeChangedTill") is not None:
                     attributes["Poate fi modificat până la"] = first_index.get("canBeChangedTill")
+                attributes.update(_accepted_range_attributes(first_index))
 
                 attributes["attribution"] = ATTRIBUTION
                 return attributes
 
         return {}
+
+
+def _accepted_range_attributes(register: dict) -> dict[str, Any]:
+    """Intervalul în care E·ON acceptă indexul unui registru (minValue – maxValue), dacă îl trimite."""
+    attributes: dict[str, Any] = {}
+    if register.get("minValue") is not None:
+        attributes["Index minim acceptat"] = register.get("minValue")
+    if register.get("maxValue") is not None:
+        attributes["Index maxim acceptat"] = register.get("maxValue")
+    return attributes
+
+
+# ──────────────────────────────────────────────
+# IndexEnergieLivrataSensor
+# ──────────────────────────────────────────────
+class IndexEnergieLivrataSensor(EonRomaniaEntity):
+    """Indexul de energie livrată în rețea (registrul „P"), doar la contractele de prosumator."""
+
+    _attr_icon = "mdi:transmission-tower-export"
+    _attr_translation_key = "index_energie_livrata"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+
+    def __init__(self, coordinator, config_entry, device_number, subcontract_code=None):
+        super().__init__(coordinator, config_entry)
+        self.device_number = device_number
+        self._subcontract_code = subcontract_code
+        id_code = subcontract_code or self._cod_incasare
+        self._attr_name = "Index energie livrată"
+        self._attr_unique_id = f"{DOMAIN}_index_energie_livrata_{id_code}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{id_code}_index_energie_livrata"
+
+    def _device_and_register(self) -> tuple[dict | None, dict | None]:
+        """(contorul, registrul „P"): contorul cu numărul de la creare, altfel primul care are registrul.
+
+        A doua variantă acoperă schimbarea contorului: senzorul nu rămâne fără valoare.
+        """
+        meter_data = get_meter_data(
+            self.coordinator.data, self._subcontract_code or self._cod_incasare,
+            is_subcontract=bool(self._subcontract_code),
+        )
+        if not isinstance(meter_data, dict):
+            return None, None
+        devices = [d for d in (meter_data.get("indexDetails") or {}).get("devices") or [] if isinstance(d, dict)]
+        same_number = [d for d in devices if d.get("deviceNumber") == self.device_number]
+        for dev in same_number + [d for d in devices if d not in same_number]:
+            _, delivered = split_registers(dev)
+            if delivered:
+                return dev, delivered
+        return None, None
+
+    @property
+    def native_value(self):
+        # senzor numeric: fără licență sau fără registru nu are valoare (nu un text și nu 0)
+        if not self._license_valid:
+            return None
+        _, register = self._device_and_register()
+        if not register:
+            return None
+        for key in ("currentValue", "oldValue"):
+            try:
+                return int(float(register[key]))
+            except (KeyError, TypeError, ValueError):
+                continue
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        if not self._license_valid:
+            return {"licență": "necesară"}
+        dev, register = self._device_and_register()
+        if not register:
+            return {}
+
+        attributes: dict[str, Any] = {}
+        if dev.get("deviceNumber") is not None:
+            attributes["Numărul dispozitivului"] = dev.get("deviceNumber")
+        attributes["Cod registru"] = register_code(register)
+        if register.get("ablbelnr") is not None:
+            attributes["Numărul ID intern citire contor"] = register.get("ablbelnr")
+        if register.get("oldValue") is not None:
+            attributes["Ultima citire validată"] = register.get("oldValue")
+        if register.get("currentValue") is not None:
+            attributes["Index propus pentru facturare"] = register.get("currentValue")
+        if register.get("sentAt") is not None:
+            attributes["Trimis la"] = register.get("sentAt")
+        if register.get("canBeChangedTill") is not None:
+            attributes["Poate fi modificat până la"] = register.get("canBeChangedTill")
+        attributes.update(_accepted_range_attributes(register))
+        attributes["attribution"] = ATTRIBUTION
+        return attributes
 
 
 # ──────────────────────────────────────────────
@@ -1145,6 +1256,14 @@ def _de_plata(item: dict) -> float:
     return issued_value if issued_value == balance_value else balance_value
 
 
+def _facturi_de_plata(coordinator_data: dict | None) -> list[dict]:
+    """Facturile cu sumă de plată (> 0) din lista de facturi neachitate."""
+    data = coordinator_data.get("invoices_unpaid") if coordinator_data else None
+    if not isinstance(data, list):
+        return []
+    return [item for item in data if isinstance(item, dict) and _de_plata(item) > 0]
+
+
 # ──────────────────────────────────────────────
 # FacturaRestantaSensor
 # ──────────────────────────────────────────────
@@ -1227,10 +1346,7 @@ class TotalDePlataSensor(EonRomaniaEntity):
 
     def _unpaid(self) -> list:
         """Facturile cu sumă de plată (> 0) din lista de facturi neachitate."""
-        data = self.coordinator.data.get("invoices_unpaid") if self.coordinator.data else None
-        if not isinstance(data, list):
-            return []
-        return [item for item in data if isinstance(item, dict) and _de_plata(item) > 0]
+        return _facturi_de_plata(self.coordinator.data)
 
     @property
     def native_value(self):
@@ -1246,6 +1362,83 @@ class TotalDePlataSensor(EonRomaniaEntity):
         attributes = {"Facturi de plată": len(self._unpaid())}
         attributes["attribution"] = ATTRIBUTION
         return attributes
+
+
+# ──────────────────────────────────────────────
+# DataScadenteiSensor + ZileScadentaSensor
+# ──────────────────────────────────────────────
+class _ScadentaSensor(EonRomaniaEntity):
+    """Bază pentru senzorii de scadență: cea mai apropiată scadență a facturilor de plată.
+
+    Aceeași regulă ca atributul „Următoarea scadență" din „Factură restantă": o restanță are
+    prioritate față de o factură care abia urmează. Fără facturi de plată, senzorii nu au valoare.
+    """
+
+    def _scadenta(self):
+        """Data celei mai apropiate scadențe, sau None dacă nu e nimic de plată."""
+        if not self._license_valid:
+            return None
+        unpaid = _facturi_de_plata(self.coordinator.data)
+        return next_due_date([item.get("maturityDate") for item in unpaid])
+
+    @property
+    def extra_state_attributes(self):
+        if not self._license_valid:
+            return {"licență": "necesară"}
+        attributes = {"Facturi de plată": len(_facturi_de_plata(self.coordinator.data))}
+        attributes["attribution"] = ATTRIBUTION
+        return attributes
+
+
+class DataScadenteiSensor(_ScadentaSensor):
+    """Data celei mai apropiate scadențe, ca dată — pentru carduri și automatizări."""
+
+    _attr_icon = "mdi:calendar-clock"
+    _attr_translation_key = "data_scadentei"
+    _attr_device_class = SensorDeviceClass.DATE
+
+    def __init__(self, coordinator, config_entry):
+        super().__init__(coordinator, config_entry)
+        self._attr_name = "Data scadenței"
+        self._attr_unique_id = f"{DOMAIN}_data_scadentei_{self._cod_incasare}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_data_scadentei"
+
+    @property
+    def native_value(self):
+        return self._scadenta()
+
+
+class ZileScadentaSensor(_ScadentaSensor):
+    """Zilele rămase până la cea mai apropiată scadență; negative când termenul a trecut."""
+
+    _attr_icon = "mdi:calendar-alert"
+    _attr_translation_key = "zile_pana_la_scadenta"
+    _attr_native_unit_of_measurement = "zile"
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, coordinator, config_entry):
+        super().__init__(coordinator, config_entry)
+        self._attr_name = "Zile până la scadență"
+        self._attr_unique_id = f"{DOMAIN}_zile_pana_la_scadenta_{self._cod_incasare}"
+        self._custom_entity_id = f"sensor.{DOMAIN}_{self._cod_incasare}_zile_pana_la_scadenta"
+
+    async def async_added_to_hass(self) -> None:
+        """Valoarea depinde de ziua curentă: se recalculează și la miezul nopții, nu doar la actualizări."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_track_time_change(self.hass, self._zi_noua, hour=0, minute=0, second=5)
+        )
+
+    @callback
+    def _zi_noua(self, _now) -> None:
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self):
+        scadenta = self._scadenta()
+        if scadenta is None:
+            return None
+        return (scadenta - dt_util.now().date()).days
 
 
 # ──────────────────────────────────────────────
@@ -1512,11 +1705,10 @@ class ArhivaSensor(EonRomaniaEntity):
         meters = year_data.get("meters", [])
         if not meters:
             return 0
-        indexes = meters[0].get("indexes", [])
-        if not indexes:
+        consumption, _ = split_registers(meters[0])  # citirile registrului de consum
+        if not consumption:
             return 0
-        readings = indexes[0].get("readings", [])
-        return len(readings)
+        return len(consumption.get("readings", []))
 
     @property
     def extra_state_attributes(self):
@@ -1531,19 +1723,44 @@ class ArhivaSensor(EonRomaniaEntity):
         attributes = {}
         readings_list = []
         for meter in year_data.get("meters", []):
-            for index in meter.get("indexes", []):
+            # fiecare registru are eticheta lui: la prosumatori, energia livrată nu mai
+            # suprascrie citirile de consum din aceeași lună
+            for rank, (label, index) in enumerate(_history_registers(meter)):
                 for reading in index.get("readings", []):
                     month_num = reading.get("month")
                     month_name = MONTHS_NUM_RO.get(month_num, "Necunoscut")
                     value = int(reading.get("value", 0))
                     reading_type_code = reading.get("readingType", "99")
                     reading_type_str = READING_TYPE_MAP.get(reading_type_code, "Necunoscut")
-                    readings_list.append((month_num, reading_type_str, month_name, value))
-        readings_list.sort(key=lambda r: r[0])
-        for _, reading_type_str, month_name, value in readings_list:
-            attributes[f"Index ({reading_type_str}) {month_name}"] = f"{value} {unit}"
+                    readings_list.append((rank, month_num or 0, label, reading_type_str, month_name, value))
+        readings_list.sort(key=lambda r: r[:2])  # întâi consumul, apoi celelalte registre; în registru, pe luni
+        for _, _, label, reading_type_str, month_name, value in readings_list:
+            attributes[f"{label} ({reading_type_str}) {month_name}"] = f"{value} {unit}"
         attributes["attribution"] = ATTRIBUTION
         return attributes
+
+
+def _history_registers(meter: Any) -> list[tuple[str, dict]]:
+    """Registrele unui contor din istoricul citirilor, fiecare cu eticheta atributelor lui.
+
+    Registrul de consum păstrează eticheta „Index" (primul în listă). La prosumatori, registrul
+    „P" devine „Index energie livrată"; un registru suplimentar fără cod cunoscut este numerotat.
+    """
+    indexes = [i for i in (meter.get("indexes") if isinstance(meter, dict) else None) or [] if isinstance(i, dict)]
+    consumption, delivered = split_registers({"indexes": indexes})
+    registers: list[tuple[str, dict]] = []
+    if consumption:
+        registers.append(("Index", consumption))
+    if delivered:
+        registers.append(("Index energie livrată", delivered))
+    position = 1
+    for index in indexes:
+        if index is consumption:
+            continue
+        position += 1
+        if index is not delivered:
+            registers.append((f"Index registrul {position}", index))
+    return registers
 
 
 # ──────────────────────────────────────────────
@@ -1657,6 +1874,10 @@ class ArhivaFacturiSensor(EonRomaniaEntity):
                 total_value += value
                 if unpaid:
                     text += " (neachitată)"
+                    # marcajul „(neachitată)" rămâne neschimbat; scadența vine după el
+                    due = next_due_date([invoice.get("maturityDate")])
+                    if due:
+                        text += f", scadentă pe {due.strftime('%d.%m.%Y')}"
             attributes[label] = text
         attributes["Facturi emise"] = len(invoices)
         attributes["Total facturat"] = f"{format_ron(total_value)} lei"
